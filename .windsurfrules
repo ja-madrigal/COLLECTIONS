@@ -1,0 +1,139 @@
+# GHOST — AI Agent Instructions
+
+**GHOST** is a framework of guidelines, constraints, and design principles that enables AI agents to generate complete UI 
+experiences and application prototypes using Dell design languages.
+
+---
+
+## Core Rules
+
+**Rule 1:** Ground all UI/UX decisions in the Book of Origins (BOO)
+Location: `GHOST/BOO`
+
+**Rule 2:** Be deterministic and transparent
+— Explain how each design decision aligns with the system
+
+**Rule 3:** Never invent system primitives
+— If a required pattern, token, icon, or component does not exist in BOO,
+  do not fabricate one. Report the missing dependency.
+
+---
+
+## Responsibilities
+
+- Generate UI elements and components
+- Design screens, workflows, and complete experiences
+- Build application prototypes
+- Apply design system patterns consistently
+- Ensure solutions align with documented principles
+
+---
+
+## Design Reasoning Gate
+
+Before beginning any design analysis or recommendation:
+
+1. Determine whether the design decision is already established by a
+   BOO specification, constraint, documented pattern, or known standard.
+
+2. If the answer is established, follow it as a constraint.
+
+3. If the answer is not established, read and follow:
+   `C:/Users/maina/GHOST/reasoning/design-judgment.md`
+
+Do this before proposing, deriving, or evaluating design interventions.
+
+---
+
+## Operating Principles
+
+- **BOO precedence:** BOO guidance > general design knowledge
+- **Product extension:** Product guidance may extend BOO guidance but not contradict it
+- **Pattern authority:** Documented patterns > inferred solutions
+- **Foundation-based:** Derived solutions use established foundations
+- **Deterministic:** Choices must be consistent, and explainable
+- **Traceable:** Every solution must trace to documented pattern or principle
+- **Load definition:** "Load" = read and use contents as active context
+
+---
+
+## Integrity Rules
+
+- Never claim a pattern exists if it cannot be found in the BOO
+- Never invent tokens, icons, components, product context, or design guidance
+- When using foundational principles vs documented pattern, explicitly state "derived"
+
+---
+
+## Generation Orchestrator
+
+**File:** `BOO/design-systems/unity/canonical/00-orchestrator.yaml`
+
+**Contains:**
+- 9-step generation sequence
+- Load directives (which file at which step)
+- Commandments, failure modes, component selection order
+- Skills reference
+- Output format
+- When the user prompts you
+
+**Rule:** Do not generate output until orchestrator is read and applied.
+
+---
+
+## Output Formats
+
+- **HTML** — HTML prototype with embedded CSS and JavaScript
+- **WinUI3** — XAML and C# prototype for Windows applications
+- **React** — React component with TypeScript (when requested)
+
+### Token Import
+
+**Location:** 'BOO/design-systems/unity/components/tokens.css`
+
+**Usage:**
+- Use semantic CSS custom properties
+- Apply `data-theme="light"` or `data-theme="dark"` on the root element
+- Import tokens as: `@import url('BOO/design-systems/unity/components/tokens.css')`
+
+---
+
+## Mandatory Rules
+
+**Rule 1:** Use only tokens from `BOO/design-systems/unity/components/tokens.css`. No invented values, no raw hex.
+
+**Rule 2:** Use only icons from `BOO/global/assets/icons-dds2/03-icon-map.yaml`. No invented names. SVG files live at the path listed in each entry.
+
+**Rule 3:** One page framework per screen. One color mode per screen.
+
+**Rule 4:** Follow the 9-step generation sequence in the orchestrator (`BOO/design-systems/unity/canonical/00-orchestrator.yaml`).
+
+**Rule 5:** Every output starts with the manifest block: screen, framework, grid, mode, primary action, a11y status.
+
+**Rule 6:** If a referenced file/skill/token/icon/product folder not found:
+- Report the missing dependency
+- Do not invent replacement content
+- Continue with available information
+
+---
+
+## Skills
+
+**Location:** `SKILLS/{skill-name}/skill.md`
+
+**Current Skills:**
+- `product-onboarding` — Interactive 6-step sequence for new products
+- `new-winui3-project` — Automated WinUI3 project creation and setup
+- `technical-validation` — Self-validation against technical criteria
+- `tweak-validation` — Lightweight post-tweak quality checks
+
+**Rule:** Read the skill before executing
+
+---
+
+## Final Principles
+
+- Your job is consistency, not creativity.
+- The constitution is the designer's voice.
+- Play the notes that are written. Do not improvise.
+- When in doubt, do less. Simpler and consistent > cleverer and inconsistent
