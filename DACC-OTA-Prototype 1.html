@@ -1,0 +1,1516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>DACC – Software Updates (OTA) Prototype</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;font-family:Roboto,"Segoe UI",system-ui,-apple-system,sans-serif;color:#e8eef6;-webkit-font-smoothing:antialiased}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:none}
+.ic{flex:none;display:inline-block;vertical-align:middle}
+
+/* ---------- Desktop ---------- */
+#desktop{position:fixed;inset:0;overflow:hidden;background:
+ radial-gradient(60% 70% at 62% 78%,#0b4fd6 0%,#1c6cf2 22%,rgba(60,130,240,.55) 38%,transparent 60%),
+ radial-gradient(40% 50% at 30% 85%,rgba(30,100,235,.8) 0%,transparent 60%),
+ radial-gradient(35% 40% at 80% 40%,rgba(40,110,230,.55) 0%,transparent 65%),
+ linear-gradient(180deg,#b9d0e6 0%,#9fbdd9 50%,#8eb1d2 100%)}
+.desk-icons{position:absolute;top:18px;right:18px;display:flex;flex-direction:column;gap:14px}
+.desk-icon{width:86px;padding:8px 4px;border-radius:4px;text-align:center;font-size:12px;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.6);cursor:default;user-select:none}
+.desk-icon:hover{background:rgba(255,255,255,.18)}
+.desk-icon .di{width:44px;height:44px;margin:0 auto 6px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(160deg,#16324f,#0b1726);box-shadow:0 2px 6px rgba(0,0,0,.35)}
+.desk-icon .di.bin{background:linear-gradient(160deg,#dfe8f2,#a8bacd);color:#30475f}
+
+/* Taskbar */
+#taskbar{position:absolute;left:0;right:0;bottom:0;height:48px;background:rgba(232,238,246,.86);backdrop-filter:blur(20px);border-top:1px solid rgba(255,255,255,.6);display:flex;align-items:center;justify-content:center;color:#1b1f24;z-index:50}
+.tb-center{display:flex;gap:4px}
+.tb-btn{width:40px;height:40px;border-radius:5px;display:grid;place-items:center;position:relative}
+.tb-btn:hover{background:rgba(255,255,255,.7)}
+.tb-btn.on::after{content:"";position:absolute;bottom:2px;left:50%;transform:translateX(-50%);width:6px;height:3px;border-radius:2px;background:#7a8592}
+.tb-btn.active::after{width:16px;background:#0067c0}
+.tb-dacc{display:none}.tb-dacc.on{display:grid}
+.tb-right{position:absolute;right:8px;display:flex;align-items:center;gap:2px;font-size:12px}
+.tray{height:40px;padding:0 6px;border-radius:5px;display:flex;align-items:center;gap:8px;position:relative}
+.tray:hover{background:rgba(255,255,255,.7)}
+.tray .badge{position:absolute;top:5px;right:2px;min-width:14px;height:14px;border-radius:7px;background:#d4351c;color:#fff;font-size:9px;display:grid;place-items:center;padding:0 3px;font-weight:700}
+.clock{text-align:right;line-height:1.3;padding:0 8px}
+
+/* OS toasts */
+#ostoasts{position:absolute;right:12px;bottom:60px;display:flex;flex-direction:column;gap:10px;z-index:60}
+.ostoast{width:364px;background:rgba(243,246,250,.97);color:#1b1f24;border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,.25);padding:14px 16px;animation:tIn .25s ease}
+.ostoast .hd{display:flex;align-items:center;gap:8px;font-size:12px;color:#555;margin-bottom:8px}
+.ostoast .hd .x{margin-left:auto;color:#666}
+.ostoast b{display:block;font-size:14px;margin-bottom:3px}
+.ostoast p{font-size:13px;color:#444;line-height:1.4}
+.ostoast .acts{display:flex;gap:8px;margin-top:12px}
+.ostoast .acts button{flex:1;padding:6px;border-radius:4px;background:#e1e6ec;font-size:13px}
+.ostoast .acts button.p{background:#0067c0;color:#fff}
+@keyframes tIn{from{transform:translateX(30px);opacity:0}to{transform:none;opacity:1}}
+
+/* Fullscreen overlay (restart / servicing / recovery) */
+#overlay{position:fixed;inset:0;z-index:100;background:#000;display:none;color:#fff}
+#overlay.show{display:block}
+.boot{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px}
+.boot-t{font-size:16px;color:#cfd8e3;min-height:20px}
+.dell-logo{font-weight:700;letter-spacing:-1px;line-height:1;display:inline-flex;flex-direction:column;align-items:center}
+.dell-logo .w{font-size:34px}.dell-logo .w i{display:inline-block;transform:rotate(-28deg);font-style:normal}
+.dell-logo small{font-size:17px;font-weight:300;letter-spacing:0;margin-top:2px}
+.dell-logo.big .w{font-size:56px}.dell-logo.big small{font-size:24px}
+.spinner{width:28px;height:28px;border-radius:50%;border:3px solid rgba(255,255,255,.15);border-top-color:#41a5f5;animation:spin 1s linear infinite}
+.spinner.sm{width:14px;height:14px;border-width:2px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.svc{height:100%;display:flex;align-items:center;justify-content:center;background:radial-gradient(70% 70% at 50% 40%,#0f2440,#050b14)}
+.svc-box{width:620px}
+.svc-box h2{font-weight:300;font-size:34px;margin:26px 0 6px}
+.svc-box .lead{color:#9fb0c5;font-size:14px;margin-bottom:22px}
+.svc-steps{list-style:none;display:flex;flex-direction:column;gap:10px;margin-bottom:22px}
+.svc-steps li{display:flex;align-items:center;gap:10px;font-size:14px;color:#7e8ea3}
+.svc-steps li[data-st=run]{color:#fff}.svc-steps li[data-st=done]{color:#b7e3a1}
+.svc-steps .sic{width:18px;height:18px;display:grid;place-items:center}
+
+/* ---------- DACC window ---------- */
+#win{position:absolute;left:50%;top:calc(50% - 24px);transform:translate(-50%,-50%);width:min(1000px,65vw);height:min(650px,calc(100vh - 80px));border-radius:10px;overflow:hidden;display:flex;flex-direction:column;
+ background:radial-gradient(900px 500px at 75% 10%,rgba(33,64,104,.55),transparent 70%),linear-gradient(165deg,#132338 0%,#0d1a2b 55%,#0a1422 100%);
+ box-shadow:0 30px 80px rgba(0,0,0,.45),0 0 0 1px rgba(255,255,255,.06);z-index:20}
+#win.hidden{display:none}
+#win.max{left:0!important;top:0!important;transform:none!important;width:100%;height:calc(100% - 48px);border-radius:0}
+.titlebar{height:40px;flex:none;display:flex;align-items:center;padding:0 6px 0 14px;font-size:12px;color:#c9d4e2;user-select:none;position:relative}
+.titlebar .ttl{flex:1}
+.tsearch{position:absolute;left:50%;transform:translateX(-50%);width:270px;height:26px;border-radius:4px;background:rgba(255,255,255,.07);display:flex;align-items:center;gap:8px;padding:0 10px;color:#8d9cb0}
+.tsearch input{background:none;border:none;outline:none;flex:1;font-size:12px;color:#e8eef6}
+.tsearch input::placeholder{color:#7d8ca1}
+.admin{background:#1f6fe0;color:#fff;font-size:10px;padding:2px 8px;border-radius:9px;margin-right:12px}
+.tbtn{width:34px;height:30px;display:grid;place-items:center;border-radius:4px;color:#c9d4e2}
+.tbtn:hover{background:rgba(255,255,255,.08)}.tbtn.cls:hover{background:#c42b1c;color:#fff}
+.wbody{flex:1;position:relative;overflow:hidden}
+#app{position:absolute;inset:0}
+.scroll{position:absolute;inset:0;overflow:auto;padding:26px 44px 0}
+.scroll::-webkit-scrollbar{width:8px}.scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18);border-radius:4px}
+
+.splash{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.splash .spinner{margin-top:70px;width:18px;height:18px;border-width:2px}
+.splash .foot{position:absolute;bottom:34px;display:flex;flex-direction:column;align-items:center;gap:10px;font-size:13px;color:#dbe4ef}
+.pill{display:inline-flex;align-items:center;gap:6px;border:1px solid #4d8fe0;border-radius:14px;padding:4px 12px;font-size:12px}
+
+/* Home */
+.home{display:grid;grid-template-columns:240px 1fr;gap:44px;min-height:calc(100% - 26px);padding:10px 0 26px}
+.home-left{display:flex;flex-direction:column}
+.eyebrow{font-size:12px;letter-spacing:1.6px;color:#8fc1ef;text-transform:uppercase;margin-bottom:8px}
+.device{font-weight:300;font-size:30px;line-height:1.2;margin-bottom:22px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:9px 10px;font-size:12px;margin-bottom:28px}
+.kv dt{font-weight:600}.kv dd{color:#b9c6d6}
+.mini{background:rgba(255,255,255,.05);border-radius:6px;padding:14px;font-size:13px;margin-bottom:12px}
+.mini .r{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.mini a{color:#b9c6d6;text-decoration:underline;cursor:pointer;font-size:12px}
+.notif-link{margin-top:auto;display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:500;padding:8px 6px;border-radius:4px;align-self:flex-start;position:relative}
+.notif-link:hover{background:rgba(255,255,255,.06)}
+.ndot{background:#d4351c;color:#fff;font-size:10px;border-radius:8px;padding:1px 6px}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:28px}
+.tile{background:linear-gradient(180deg,#142c4d,#11264a);border-radius:8px;padding:0 20px;height:72px;display:flex;align-items:center;gap:14px;font-size:17px;font-weight:500;text-align:left;transition:background .15s;position:relative}
+.tile:hover{background:#1a3760}
+.tile .chev{margin-left:auto;color:#c9d4e2}
+.tile .dot{position:absolute;top:10px;right:10px;width:8px;height:8px;border-radius:50%;background:#d4351c}
+.feat-ic{width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.12);display:grid;place-items:center;position:relative}
+.feat-ic .badge{position:absolute;top:-3px;right:-5px;background:#d4351c;color:#fff;font-size:10px;font-weight:700;border-radius:8px;padding:1px 5px}
+.utils{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.util{border:1px solid rgba(255,255,255,.16);border-radius:5px;padding:11px;font-size:12px;color:#d7e0eb;display:flex;flex-direction:column;align-items:center;gap:6px}
+.util:hover{background:rgba(255,255,255,.04)}.util b{font-weight:600;color:#fff}
+
+/* Generic page */
+.page-head{display:flex;align-items:center;gap:12px}
+.page-head h1{font-weight:300;font-size:40px;letter-spacing:-.3px}
+.back{width:30px;height:30px;display:grid;place-items:center;border-radius:4px}.back:hover{background:rgba(255,255,255,.08)}
+.sub{color:#b9c6d6;font-size:13px;margin:2px 0 16px 42px}
+.btn{border:1px solid rgba(255,255,255,.85);border-radius:3px;padding:8px 18px;font-size:13px;font-weight:500;display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+.btn:hover:not(:disabled){background:rgba(255,255,255,.08)}
+.btn.primary{background:#0672cb;border-color:#0672cb;color:#fff}.btn.primary:hover:not(:disabled){background:#0a80e0}
+.btn.danger{background:#b3261e;border-color:#b3261e}.btn.danger:hover:not(:disabled){background:#c9302a}
+.btn.ghost{border-color:transparent}
+.btn.sm{padding:5px 12px;font-size:12px}
+.btn:disabled{opacity:.38;cursor:not-allowed}
+.link{color:#6cb4f5;font-size:12px;cursor:pointer;text-decoration:none;background:none;border:none;padding:0}
+.link:hover{text-decoration:underline}
+.link:disabled{color:#64748a;cursor:not-allowed;text-decoration:none}
+
+.status{display:flex;align-items:center;gap:16px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:12px 16px;margin-bottom:12px}
+.st-main{display:flex;align-items:center;gap:12px;flex:1}
+.st-main b{font-size:15px;font-weight:500;display:block}
+.st-main small{font-size:12px;color:#9fb0c5}
+.sdot{width:10px;height:10px;border-radius:50%;flex:none}
+.sdot.g{background:#6fcf5a}.sdot.a{background:#f2b33d}.sdot.r{background:#ef5350}
+.tagp{font-size:11px;border-radius:10px;padding:3px 9px;display:inline-flex;align-items:center;gap:5px;background:rgba(255,255,255,.07);color:#cfd9e6;white-space:nowrap}
+.tagp.on{background:rgba(242,179,61,.15);color:#f6c96d}
+.tagp.off{background:rgba(111,207,90,.13);color:#9be08a}
+.tagp.wms{background:rgba(66,153,240,.15);color:#8fc6fa}
+
+.banner{display:flex;gap:12px;align-items:flex-start;border-radius:6px;padding:11px 14px;font-size:13px;margin-bottom:10px;line-height:1.45;border-left:3px solid}
+.banner b{font-weight:600}
+.banner .bx{margin-left:auto;display:flex;gap:8px;align-items:center;flex:none}
+.banner.info{background:rgba(42,120,214,.13);border-color:#3d8fe8}
+.banner.warn{background:rgba(242,179,61,.10);border-color:#f2b33d}
+.banner.err{background:rgba(239,83,80,.12);border-color:#ef5350}
+.banner.ok{background:rgba(111,207,90,.10);border-color:#6fcf5a}
+
+.tabs{display:flex;background:#132b4c;border-radius:4px;margin:14px 0 16px;overflow:hidden}
+.tab{flex:1;padding:9px;font-size:13px;text-align:center;color:#dbe4ef}
+.tab:hover{background:rgba(255,255,255,.04)}
+.tab.active{background:#0a6fc2;color:#fff;font-weight:500}
+.tab .cnt{font-size:11px;background:rgba(255,255,255,.18);border-radius:8px;padding:1px 7px;margin-left:6px}
+
+.avail{display:grid;grid-template-columns:200px 1fr;gap:18px;padding-bottom:12px}
+.cats{display:flex;flex-direction:column;gap:2px;align-self:start;position:sticky;top:0}
+.cat{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:4px;font-size:13px;color:#cfd9e6;text-align:left}
+.cat:hover{background:rgba(255,255,255,.05)}
+.cat.active{background:rgba(10,111,194,.3);color:#fff;box-shadow:inset 3px 0 0 #2b8fef}
+.cat .n{margin-left:auto;font-size:11px;color:#9fb0c5}
+.cat .n.crit{color:#ff8f8f}
+.cat-sep{height:1px;background:rgba(255,255,255,.08);margin:10px 0}
+.cats .link{padding:4px 10px;text-align:left}
+
+table.grid{width:100%;border-collapse:collapse;font-size:13px}
+.grid th{text-align:left;font-weight:500;padding:9px 12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);color:#dfe8f3;white-space:nowrap}
+.grid td{padding:10px 12px;border:1px solid rgba(255,255,255,.12);vertical-align:middle}
+.grid tr.click{cursor:pointer}.grid tr.click:hover td{background:rgba(255,255,255,.035)}
+.grid tr.selrow td{background:rgba(10,111,194,.12)}
+.grid tr.flash td{animation:rowFlash 2.6s ease-out}
+@keyframes rowFlash{0%,35%{background:rgba(43,143,239,.42)}100%{background:rgba(10,111,194,.12)}}
+.grid tr.grp td{background:rgba(10,111,194,.12);font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:#8fc1ef;padding:7px 12px}
+.grid .nm{font-weight:500}
+.grid .ver{font-size:12px;color:#9fb0c5;margin-top:2px}.grid .ver b{color:#e8eef6;font-weight:500}
+.grid .tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:5px}
+.grid input[type=checkbox]{width:15px;height:15px;accent-color:#0a6fc2;cursor:pointer}
+.grid .muted{color:#9fb0c5}
+.chip{display:inline-block;font-size:11px;font-weight:600;padding:3px 10px;border-radius:10px;white-space:nowrap;min-width:96px;text-align:center}
+.chip.c-crit{background:rgba(239,83,80,.16);color:#ff9a97;border:1px solid rgba(239,83,80,.45)}
+.chip.c-rec{background:rgba(124,196,74,.14);color:#b4e58f;border:1px solid rgba(124,196,74,.45)}
+.chip.c-opt{background:rgba(66,153,240,.14);color:#8fc6fa;border:1px solid rgba(66,153,240,.45)}
+.imp{display:inline-flex;align-items:center;gap:5px;font-size:12px;white-space:nowrap}
+.imp.live{color:#9be08a}.imp.restart{color:#f6c96d}.imp.reimage{color:#ff9a97}
+.mtag{font-size:11px;padding:2px 8px;border-radius:3px;background:rgba(255,255,255,.07);color:#cfd9e6;display:inline-flex;gap:4px;align-items:center}
+.mtag.g{background:rgba(111,207,90,.13);color:#9be08a}.mtag.b{background:rgba(66,153,240,.15);color:#8fc6fa}.mtag.a{background:rgba(242,179,61,.13);color:#f6c96d}
+.empty{padding:50px 20px;text-align:center;color:#9fb0c5;border:1px dashed rgba(255,255,255,.12);border-radius:8px}
+.empty .ic{color:#6fcf5a;margin-bottom:10px}
+.empty b{display:block;color:#e8eef6;font-size:15px;font-weight:500;margin-bottom:4px}
+
+.footer-bar{position:sticky;bottom:0;margin:0 -44px;padding:12px 44px;background:linear-gradient(180deg,rgba(13,26,43,.85),#0c1828);backdrop-filter:blur(6px);border-top:1px solid rgba(255,255,255,.1);display:flex;align-items:center;gap:18px;z-index:2}
+.footer-bar .sum{flex:1;font-size:13px;color:#b9c6d6;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.footer-bar .sum b{color:#fff;font-weight:500}
+.footer-bar .big{font-size:17px;color:#6cb4f5;font-weight:500}
+.footer-bar .acts{display:flex;gap:10px}
+
+.oscard{background:rgba(22,52,92,.45);border-radius:8px;padding:16px 18px;margin-bottom:14px}
+.oscard h3{font-size:15px;font-weight:500;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.osgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;font-size:12px}
+.osgrid span{display:block;color:#9fb0c5;margin-bottom:2px}
+.img-row{display:flex;gap:16px;align-items:center;background:#132d52;border-radius:6px;padding:14px 16px;margin-bottom:8px}
+.img-row .meta{flex:1}
+.img-row .meta b{font-size:14px;font-weight:500}
+.img-row .meta small{display:block;color:#9fb0c5;font-size:12px;margin-top:3px}
+.img-row ul{margin:8px 0 0 16px;font-size:12px;color:#cfd9e6;line-height:1.6}
+
+/* Prefs */
+.pref-sec{background:rgba(22,52,92,.45);border-radius:8px;margin-bottom:14px;overflow:hidden}
+.pref-sec h3{font-size:14px;font-weight:500;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;gap:8px}
+.pref-sec h3 .lk{margin-left:auto;font-size:11px;font-weight:400;color:#8fc6fa;display:flex;gap:5px;align-items:center}
+.prow{display:flex;align-items:center;gap:16px;padding:11px 16px;font-size:13px;background:#132d52;margin:8px 10px;border-radius:5px}
+.prow .pl{flex:1}.prow .pl small{display:block;font-size:11px;color:#9fb0c5;margin-top:2px}
+.sel,.inp{background:#21344d;border:1px solid rgba(255,255,255,.18);border-radius:3px;padding:6px 10px;font-size:12px;min-width:200px;outline:none}
+.inp{background:#0d1a2c;border-color:rgba(255,255,255,.4)}
+.sel:disabled,.inp:disabled{opacity:.5}
+.sel option{background:#1a2c44}
+.tg{width:34px;height:18px;border-radius:9px;background:#8a97a8;position:relative;flex:none;transition:background .15s}
+.tg::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:left .15s}
+.tg.on{background:#0a6fc2}.tg.on::after{left:18px}
+.tg:disabled{opacity:.45}
+.tgw{display:flex;align-items:center;gap:8px;font-size:12px}
+
+/* Drawer */
+.drawer{position:absolute;top:0;right:0;bottom:0;width:min(640px,62%);background:#0f1f36;box-shadow:-20px 0 50px rgba(0,0,0,.45);z-index:10;display:flex;flex-direction:column;animation:dIn .2s ease}
+@keyframes dIn{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
+.dr-scroll{flex:1;overflow:auto;padding:16px 26px}
+.drawer h2{font-weight:300;font-size:26px;margin:12px 0 12px}
+.dmeta{display:grid;grid-template-columns:repeat(3,1fr);gap:8px 14px;font-size:12px;margin-bottom:12px}
+.dmeta span{color:#9fb0c5}
+.desc{font-size:13px;color:#cfd9e6;line-height:1.5;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid rgba(255,255,255,.08)}
+.dr-body{display:grid;grid-template-columns:170px 1fr;gap:18px}
+.dr-nav{display:flex;flex-direction:column;border-right:1px solid rgba(255,255,255,.08)}
+.dr-nav button{text-align:left;padding:9px 10px;font-size:13px;color:#b9c6d6}
+.dr-nav button.active{color:#6cb4f5;box-shadow:inset -2px 0 0 #2b8fef}
+.dr-sec h4{font-size:15px;font-weight:500;margin-bottom:10px}
+.dr-sec ul{margin-left:18px;font-size:13px;line-height:1.7;color:#dbe4ef}
+.dr-sec p{font-size:13px;line-height:1.55;color:#dbe4ef;margin-bottom:8px}
+.mono{font-family:Consolas,monospace;font-size:12px;word-break:break-all;color:#cfd9e6}
+.dr-foot{padding:12px 26px;border-top:1px solid rgba(255,255,255,.1);display:flex;gap:10px;align-items:center}
+.dr-foot .note{flex:1;font-size:12px;color:#9fb0c5;display:flex;gap:6px;align-items:center}
+
+/* Notification panel */
+.npanel{position:absolute;top:0;right:0;bottom:0;width:340px;background:#0f1f36;box-shadow:-20px 0 50px rgba(0,0,0,.45);z-index:11;display:flex;flex-direction:column;animation:dIn .2s ease}
+.npanel .nh{display:flex;align-items:center;padding:16px 18px 8px;font-size:18px}
+.npanel .nh button{margin-left:auto}
+.npanel .na{display:flex;justify-content:space-between;padding:4px 18px 12px;border-bottom:1px solid rgba(255,255,255,.08)}
+.npanel .na .del{color:#ff8f8f}
+.nlist{flex:1;overflow:auto}
+.nitem{padding:14px 18px;border-bottom:1px solid rgba(255,255,255,.07);font-size:13px;position:relative}
+.nitem.unread{background:rgba(42,120,214,.16)}
+.nitem .t{display:flex;gap:8px;align-items:center;font-weight:500;margin-bottom:6px;padding-right:20px}
+.nitem p{color:#b9c6d6;line-height:1.45;margin-left:24px}
+.nitem small{display:block;color:#7f90a6;font-size:11px;margin:6px 0 0 24px}
+.nitem .x{position:absolute;top:12px;right:12px;color:#7f90a6}
+.nitem .va{display:flex;justify-content:flex-end;margin-top:8px}
+
+/* Modal */
+#modal{position:absolute;inset:0;z-index:30;display:none}
+#modal.show{display:flex;align-items:center;justify-content:center;background:rgba(5,12,22,.55);backdrop-filter:blur(5px)}
+.dialog{width:600px;max-width:92%;max-height:92%;display:flex;flex-direction:column;background:linear-gradient(180deg,#10233f,#0d1c33);border-radius:8px;box-shadow:0 20px 60px rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.07)}
+.dialog.wide{width:720px}
+.dlg-b{padding:22px 24px 6px;overflow:auto}
+.dialog h2{font-weight:300;font-size:26px;margin-bottom:4px}
+.dialog .dsub{font-size:12px;color:#9fb0c5;margin-bottom:16px}
+.dlg-f{padding:14px 24px 18px;display:flex;justify-content:flex-end;align-items:center;gap:10px}
+.dlg-f .grow{flex:1;font-size:12px;color:#9fb0c5}
+.sec-t{font-size:11px;letter-spacing:1.3px;color:#8fc1ef;text-transform:uppercase;margin:14px 0 8px}
+.jlist{display:flex;flex-direction:column;gap:6px}
+.jr{background:#132d52;border-radius:5px;padding:10px 12px;font-size:13px}
+.jr .top{display:flex;align-items:center;gap:10px}
+.jr .top .n{flex:1;font-weight:500}
+.jr .top .s{font-size:12px;color:#9fb0c5}
+.jr .jr-t{font-size:12px;color:#9fb0c5;margin:6px 0 0 26px}
+.jr[data-st=ok] .jr-t{color:#9be08a}.jr[data-st=fail] .jr-t{color:#ff9a97}
+.jr-ic{width:16px;height:16px;display:grid;place-items:center}
+.bar{height:4px;background:rgba(255,255,255,.1);border-radius:2px;overflow:hidden;margin:7px 0 0 26px}
+.bar i{display:block;height:100%;width:0;background:#2b8fef;transition:width .12s linear}
+.jr[data-st=ok] .bar i{background:#6fcf5a}.jr[data-st=fail] .bar i{background:#ef5350}
+.bar.big{height:6px;margin:0}
+.checks{display:flex;flex-direction:column;gap:6px}
+.ck{display:flex;gap:10px;align-items:flex-start;background:#132d52;border-radius:5px;padding:9px 12px;font-size:13px}
+.ck .ci{width:18px;flex:none;padding-top:1px}
+.ck b{font-weight:500;display:block}.ck small{color:#b9c6d6;font-size:12px;line-height:1.45;display:block}
+.ck.pass .ci{color:#6fcf5a}.ck.warn .ci{color:#f2b33d}.ck.fail .ci{color:#ef5350}.ck.pend{opacity:.6}
+.ack{display:flex;gap:8px;align-items:center;margin-top:6px;font-size:12px;color:#e8eef6}
+.ack input,.opt input{accent-color:#0a6fc2}
+.opt{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;background:#132d52;border-radius:5px;margin-bottom:6px;font-size:13px;cursor:pointer}
+.opt small{display:block;color:#9fb0c5;font-size:12px;margin-top:2px}
+.opt.dis{opacity:.5;cursor:not-allowed}
+.stepper{display:flex;gap:6px;margin-bottom:18px}
+.stepper div{flex:1;font-size:11px;color:#7f90a6;padding-top:8px;border-top:3px solid rgba(255,255,255,.12)}
+.stepper div.on{color:#fff;border-color:#2b8fef}.stepper div.done{color:#9fb0c5;border-color:#1d5e9e}
+.warnbox{background:rgba(239,83,80,.12);border:1px solid rgba(239,83,80,.4);border-radius:5px;padding:12px 14px;font-size:13px;line-height:1.5;display:flex;gap:10px;margin:10px 0}
+.res{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.07);font-size:13px}
+.res small{display:block;color:#9fb0c5;font-size:12px;margin-top:2px}
+.res .ok{color:#6fcf5a}.res .bad{color:#ef5350}
+
+/* In-app toast (theme) */
+#atoasts{position:absolute;right:20px;bottom:20px;z-index:40;display:flex;flex-direction:column;gap:8px}
+.atoast{min-width:300px;max-width:420px;background:#13243c;border-left:4px solid #6ea204;border-radius:4px;padding:12px 14px;font-size:13px;display:flex;gap:10px;align-items:center;box-shadow:0 8px 24px rgba(0,0,0,.4);animation:tIn .2s ease}
+.atoast.err{border-color:#ef5350}.atoast.info{border-color:#2b8fef}
+.atoast .x{margin-left:auto;width:22px;height:22px;border:1px solid #4d8fe0;border-radius:50%;display:grid;place-items:center;color:#8fc6fa}
+
+/* Prototype controls */
+.proto{position:absolute;top:14px;left:14px;width:250px;z-index:70;font-size:12px;color:#14221a;border-radius:6px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+.proto-h{background:#7cf2b7;padding:9px 12px;font-weight:700;display:flex;justify-content:space-between;cursor:pointer;user-select:none}
+.proto-b{background:#e9fff3;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.proto.col .proto-b{display:none}
+.proto label{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.proto select{font-size:12px;padding:3px 4px;border:1px solid #9cc;border-radius:3px;background:#fff;color:#14221a;width:150px}
+.proto .chk{justify-content:flex-start}
+.proto button{background:#fff;border:1px solid #8fbfa5;border-radius:3px;padding:6px;font-size:12px;color:#14221a;text-align:left}
+.proto button:hover{background:#d4f7e4}
+.proto .hint{color:#4a6b59;font-size:11px;line-height:1.4}
+
+/* ================= Reviewer feedback ================= */
+#fb-root{font-size:13px;color:#1b1f24}
+#fb-root button{color:inherit}
+.fb-fab{position:fixed;left:16px;bottom:62px;z-index:9001;display:flex;align-items:center;gap:8px;background:#5b3df5;color:#fff!important;border-radius:22px;padding:10px 16px;font-weight:600;box-shadow:0 8px 24px rgba(40,20,140,.45)}
+.fb-fab:hover{background:#4a2ee0}
+.fb-fab .n{background:#fff;color:#5b3df5;border-radius:10px;font-size:11px;padding:1px 7px}
+.fb-menu{position:fixed;left:16px;bottom:112px;z-index:9001;background:#fff;border-radius:8px;box-shadow:0 12px 36px rgba(0,0,0,.3);padding:6px;width:250px;display:flex;flex-direction:column}
+.fb-menu button{text-align:left;padding:9px 10px;border-radius:5px;display:flex;gap:10px;align-items:center}
+.fb-menu button:hover{background:#f0edff}
+.fb-menu small{display:block;color:#6b7380;font-size:11px}
+.fb-menu hr{border:none;border-top:1px solid #eceef2;margin:4px 0}
+.fb-dim{position:fixed;inset:0;z-index:9500;background:rgba(10,14,22,.45);display:flex;align-items:center;justify-content:center}
+.fb-dlg{background:#fff;border-radius:10px;width:520px;max-width:94vw;max-height:90vh;overflow:auto;box-shadow:0 24px 60px rgba(0,0,0,.4)}
+.fb-dlg .hd{padding:18px 22px 6px;font-size:18px;font-weight:600;display:flex;align-items:center;gap:10px}
+.fb-dlg .hd .x{margin-left:auto;color:#6b7380}
+.fb-dlg .bd{padding:6px 22px 14px;display:flex;flex-direction:column;gap:12px}
+.fb-dlg .ft{padding:12px 22px 18px;display:flex;gap:8px;justify-content:flex-end;align-items:center;border-top:1px solid #eceef2}
+.fb-dlg .ft .grow{flex:1;color:#6b7380;font-size:12px}
+.fb-dlg .f{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:600;color:#3b4350}
+.fb-dlg input[type=text],.fb-dlg textarea,.fb-dlg select,.fb-panel select,.fb-panel input[type=text]{font:inherit;font-weight:400;color:#1b1f24;border:1px solid #cfd4dc;border-radius:5px;padding:8px 10px;background:#fff}
+.fb-dlg textarea{min-height:110px;resize:vertical}
+.fb-dlg p{line-height:1.5;color:#3b4350}
+.fb-seg{display:flex;flex-wrap:wrap;gap:6px}
+.fb-seg button{border:1px solid #cfd4dc;border-radius:14px;padding:5px 12px;font-size:12px;background:#fff}
+.fb-seg button.on{background:#5b3df5;border-color:#5b3df5;color:#fff!important}
+.fb-ctx{background:#f5f6f8;border-radius:6px;padding:10px 12px;font-size:12px;color:#4b5361;line-height:1.55}
+.fb-ctx b{color:#1b1f24;font-weight:600}
+.fb-btn{border:1px solid #cfd4dc;border-radius:5px;padding:8px 14px;font-weight:500;background:#fff;display:inline-flex;gap:6px;align-items:center}
+.fb-btn:hover{background:#f5f6f8}
+.fb-btn.p{background:#5b3df5;border-color:#5b3df5;color:#fff!important}.fb-btn.p:hover{background:#4a2ee0}
+.fb-btn.d{color:#c62828!important;border-color:#f0c4c4}
+.fb-btn:disabled{opacity:.5;cursor:not-allowed}
+.fb-panel{position:fixed;top:0;right:0;bottom:48px;width:440px;max-width:100vw;z-index:9000;background:#fff;box-shadow:-16px 0 40px rgba(0,0,0,.3);display:flex;flex-direction:column}
+.fb-panel .ph{padding:16px 18px 10px;border-bottom:1px solid #eceef2}
+.fb-panel .ph h2{font-size:18px;font-weight:600;display:flex;align-items:center;gap:8px}
+.fb-panel .ph h2 .x{margin-left:auto;color:#6b7380}
+.fb-panel .who{font-size:12px;color:#6b7380;margin-top:4px}
+.fb-panel .who a{color:#5b3df5;cursor:pointer;text-decoration:underline}
+.fb-panel .flt{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:10px 18px;border-bottom:1px solid #eceef2;font-size:12px}
+.fb-panel .flt select{padding:5px 6px;font-size:12px}
+.fb-panel .flt label{display:flex;gap:6px;align-items:center;grid-column:1/-1;color:#4b5361}
+.fb-list{flex:1;overflow:auto;padding:8px 12px}
+.fb-item{border:1px solid #eceef2;border-radius:8px;padding:10px 12px;margin-bottom:8px}
+.fb-item:hover{border-color:#cbc2ff}
+.fb-item .t{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:11px}
+.fb-item .num{background:#5b3df5;color:#fff;border-radius:50%;width:20px;height:20px;display:grid;place-items:center;font-weight:700;font-size:11px}
+.fb-item .num.g{background:#8a93a3}
+.fb-tag{border-radius:10px;padding:1px 8px;background:#f0f1f4;color:#3b4350;font-weight:600}
+.fb-tag.High{background:#fde7e7;color:#b3261e}.fb-tag.Medium{background:#fff3d6;color:#8a5a00}.fb-tag.Low{background:#e6f4ea;color:#1e6b33}
+.fb-tag.st-open{background:#e8f0fe;color:#1a56b8}.fb-tag.st-progress{background:#fff3d6;color:#8a5a00}.fb-tag.st-addressed{background:#e6f4ea;color:#1e6b33}.fb-tag.st-wontdo{background:#eceef2;color:#5b6472}
+.fb-item .txt{margin:7px 0 5px;white-space:pre-wrap;line-height:1.45}
+.fb-item .note{background:#f5f3ff;border-left:3px solid #5b3df5;padding:5px 8px;font-size:12px;margin:4px 0;white-space:pre-wrap}
+.fb-item .meta{font-size:11px;color:#6b7380;line-height:1.5}
+.fb-item .acts{display:flex;gap:12px;margin-top:6px;font-size:12px}
+.fb-item .acts button{color:#5b3df5!important;font-weight:500}
+.fb-item .acts button.del{color:#c62828!important}
+.fb-panel .pf{padding:10px 14px;border-top:1px solid #eceef2;display:flex;flex-wrap:wrap;gap:6px}
+.fb-panel .pf .fb-btn{padding:7px 10px;font-size:12px}
+.fb-panel .pf .fb-btn.p{flex-basis:100%;justify-content:center;padding:10px}
+.fb-empty{text-align:center;color:#6b7380;padding:40px 10px;line-height:1.6}
+#fb-pins{position:fixed;inset:0;pointer-events:none;z-index:8000}
+.fb-pin{position:fixed;pointer-events:auto;width:26px;height:26px;margin:-26px 0 0 -4px;border-radius:50% 50% 50% 4px;background:#5b3df5;color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center;box-shadow:0 3px 10px rgba(40,20,140,.5);border:2px solid #fff;cursor:pointer}
+.fb-pin.done{background:#8a93a3}
+.fb-pin.pulse{animation:fbPulse 1.1s ease 3}
+@keyframes fbPulse{50%{transform:scale(1.5)}}
+.fb-pick-hl{position:fixed;z-index:8500;pointer-events:none;border:2px solid #5b3df5;background:rgba(91,61,245,.12);border-radius:3px;transition:all .05s}
+.fb-pick-bar{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:9002;background:#5b3df5;color:#fff;border-radius:20px;padding:9px 18px;font-weight:600;box-shadow:0 8px 24px rgba(40,20,140,.45)}
+body.fb-picking,body.fb-picking *{cursor:crosshair!important}
+.fb-warn{position:fixed;top:0;left:0;right:0;z-index:9999;background:#b3261e;color:#fff;padding:12px 18px;font-weight:500;text-align:center;line-height:1.5}
+.fb-toast{position:fixed;left:50%;bottom:70px;transform:translateX(-50%);z-index:9600;background:#1b1f24;color:#fff;border-radius:6px;padding:10px 16px;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+.fb-tour-block{position:fixed;inset:0;z-index:9700}
+.fb-tour-block.dim{background:rgba(10,14,22,.55)}
+.fb-tour-spot{position:fixed;z-index:9701;pointer-events:none;border-radius:8px;box-shadow:0 0 0 3px #a996ff,0 0 0 9999px rgba(10,14,22,.55);transition:all .25s ease}
+.fb-tour-card{position:fixed;z-index:9702;width:330px;max-width:calc(100vw - 24px);background:#fff;border-radius:10px;box-shadow:0 20px 50px rgba(0,0,0,.45);padding:16px 18px 14px;transition:left .25s ease,top .25s ease}
+.fb-tour-card .st{font-size:11px;font-weight:600;color:#5b3df5;text-transform:uppercase;letter-spacing:.04em}
+.fb-tour-card h3{font-size:16px;font-weight:600;margin:4px 0 6px}
+.fb-tour-card p{line-height:1.5;color:#3b4350;margin:0}
+.fb-tour-card .dots{display:flex;gap:4px;margin:12px 0 10px}
+.fb-tour-card .dots i{width:6px;height:6px;border-radius:50%;background:#dcd6ff}
+.fb-tour-card .dots i.on{background:#5b3df5;width:16px;border-radius:3px}
+.fb-tour-card .ft{display:flex;align-items:center;gap:8px}
+.fb-tour-card .ft .skip{margin-right:auto;color:#6b7380;font-size:12px;text-decoration:underline}
+.fb-tour-card .demo-pin{display:inline-grid;position:static;margin:0 4px -6px;vertical-align:middle;cursor:default}
+</style>
+</head>
+<body>
+<div id="desktop">
+  <div class="desk-icons">
+    <div class="desk-icon" data-dbl="dacc"><div class="di" id="di-dacc"></div>Dell Application Control Center</div>
+    <div class="desk-icon"><div class="di bin" id="di-bin"></div>Recycle Bin</div>
+  </div>
+
+  <div id="win" class="hidden">
+    <div class="titlebar" id="titlebar">
+      <div class="ttl">Dell Application Control Center</div>
+      <div class="tsearch" id="tsearch"></div>
+      <span class="admin">Admin</span>
+      <button class="tbtn" data-act="settings" title="Settings" id="tb-gear"></button>
+      <button class="tbtn" data-act="winMin" title="Minimize" id="tb-min"></button>
+      <button class="tbtn" data-act="winMax" title="Maximize" id="tb-max"></button>
+      <button class="tbtn cls" data-act="winClose" title="Close" id="tb-close"></button>
+    </div>
+    <div class="wbody">
+      <div id="app"></div>
+      <div id="drawer"></div>
+      <div id="npanel"></div>
+      <div id="modal"></div>
+      <div id="atoasts"></div>
+    </div>
+  </div>
+
+  <div id="ostoasts"></div>
+
+  <div id="taskbar">
+    <div class="tb-center">
+      <button class="tb-btn" title="Start" id="tb-start"></button>
+      <button class="tb-btn" title="Search" id="tb-search"></button>
+      <button class="tb-btn" title="File Explorer" id="tb-files"></button>
+      <button class="tb-btn" title="Microsoft Edge" id="tb-edge"></button>
+      <button class="tb-btn tb-dacc" title="Dell Application Control Center" id="tb-dacc" data-act="tbDacc"></button>
+    </div>
+    <div class="tb-right">
+      <button class="tray" data-act="osOpen" title="Dell software updates" id="tray-upd"></button>
+      <div class="tray" id="tray-sys"></div>
+      <div class="clock" id="clock"></div>
+    </div>
+  </div>
+
+  <div class="proto" id="proto">
+    <div class="proto-h" data-act="protoToggle"><span>Prototype controls</span><span id="proto-car">&#9662;</span></div>
+    <div class="proto-b">
+      <label>Write Filter <select data-proto="wf"><option value="1">ON</option><option value="0">OFF</option></select></label>
+      <label>WMS <select data-proto="wms"><option value="none">Not registered</option><option value="registered">Registered · local control</option><option value="managed">Registered · WMS-managed</option></select></label>
+      <label>Power <select data-proto="ac"><option value="1">AC connected</option><option value="0">Battery 35%</option></select></label>
+      <label>Network <select data-proto="net"><option value="online">Online</option><option value="metered">Metered</option><option value="offline">Offline</option></select></label>
+      <label class="chk"><input type="checkbox" data-proto="fail" /> Fail next install (error 1603)</label>
+      <button data-act="push">Simulate urgent security update</button>
+      <button data-act="runWindow">Run maintenance window now</button>
+      <button data-act="reset">Reset prototype</button>
+      <div class="hint">Simulates device conditions to demo pre-flight checks, UWF servicing mode, WMS control and failure / rollback paths.</div>
+    </div>
+  </div>
+</div>
+<div id="overlay"></div>
+<div id="fb-root"></div>
+
+<script type="application/json" id="fb-embedded">{"items":[]}</script>
+<script>
+/* ================= Icons ================= */
+const I={
+back:'<path d="M19 12H5M11 6l-6 6 6 6"/>',chev:'<path d="M9 6l6 6-6 6"/>',chevd:'<path d="M6 9l6 6 6-6"/>',
+search:'<circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/>',
+gear:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+min:'<path d="M6 12h12"/>',max:'<rect x="6" y="6" width="12" height="12" rx="1"/>',close:'<path d="M6 6l12 12M18 6L6 18"/>',
+bell:'<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/>',
+info:'<circle cx="12" cy="12" r="9"/><path d="M12 16v-5M12 8h.01"/>',
+check:'<path d="M5 12.5l4.5 4.5L19 7.5"/>',checkc:'<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.8 2.8L16 10"/>',
+xc:'<circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/>',
+warn:'<path d="M12 3.5l9 16H3z"/><path d="M12 10v4M12 17h.01"/>',
+lock:'<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+refresh:'<path d="M20 11a8 8 0 0 0-14.6-4.5L4 8M4 4v4h4M4 13a8 8 0 0 0 14.6 4.5L20 16M20 20v-4h-4"/>',
+download:'<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+shield:'<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/>',
+wand:'<path d="M4 20L15 9M15 3v2M15 11v2M11 7h2M17 7h2M18 4l1-1M18 10l1 1"/>',
+sliders:'<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>',
+wf:'<path d="M20 12a8 8 0 1 1-3-6.2"/><circle cx="12" cy="12" r="3"/><path d="M17 3v3h3"/>',
+shortcut:'<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
+login:'<path d="M14 4h5a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-5M10 16l4-4-4-4M14 12H4"/>',
+logs:'<path d="M6 3h9l4 4v14H6z"/><path d="M9 12h7M9 16h7"/>',image:'<rect x="4" y="4" width="16" height="16" rx="2" stroke-dasharray="2 2"/><path d="M12 8v8M8 12h8"/>',
+tools:'<path d="M14.7 6.3a4 4 0 0 0 5 5L12 19a2 2 0 0 1-3-3z"/><path d="M4 4l6 6"/>',
+upd:'<path d="M20 12a8 8 0 1 1-2.3-5.7L20 8.6"/><path d="M20 4v4.6h-4.6"/><path d="M12 8v6M9.5 11.5L12 14l2.5-2.5"/>',
+power:'<path d="M12 3v8"/><path d="M6.3 7a8 8 0 1 0 11.4 0"/>',disk:'<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 14h.01M11 14h6"/>',chip:'<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/><circle cx="12" cy="12" r="3"/>',
+net:'<path d="M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><path d="M12 19.5h.01"/>',
+apps:'<rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/>',
+vdi:'<rect x="3" y="4" width="18" height="12" rx="1"/><path d="M8 20h8M12 16v4"/>',
+globe:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
+win:'<path d="M4 5.5l7-1v7H4zM13 4.2l7-1v8.3h-7zM4 13h7v7l-7-1zM13 13h7v8l-7-1z"/>',
+all:'<path d="M4 6h16M4 12h16M4 18h16"/>',
+vol:'<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9a4 4 0 0 1 0 6"/>',
+batt:'<rect x="2" y="7" width="17" height="10" rx="2"/><path d="M22 11v2"/>',
+plug:'<path d="M9 2v6M15 2v6M6 8h12v4a6 6 0 0 1-12 0zM12 18v4"/>',
+undo:'<path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/>',
+skip:'<circle cx="12" cy="12" r="9"/><path d="M6 6l12 12"/>',
+cal:'<rect x="4" y="5" width="16" height="16" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>',
+pkg:'<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/>',
+up:'<path d="M18 15l-6-6-6 6"/>'
+};
+const ic=(n,s=16,sw=1.6)=>`<svg class="ic" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">${I[n]}</svg>`;
+const spin=(sm=true)=>`<span class="spinner ${sm?'sm':''}"></span>`;
+const dellLogo=(big)=>`<div class="dell-logo ${big?'big':''}"><span class="w">D<i>E</i>LL</span><small>Technologies</small></div>`;
+const $=s=>document.querySelector(s);
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const fmtD=iso=>{const d=new Date(iso+'T00:00:00');return `${String(d.getDate()).padStart(2,'0')} ${MON[d.getMonth()]} ${d.getFullYear()}`};
+const fmtT=d=>d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
+const fmtDT=d=>`${String(d.getDate()).padStart(2,'0')} ${MON[d.getMonth()]} ${d.getFullYear()}, ${fmtT(d)}`;
+const relT=d=>{const n=new Date();return d.toDateString()===n.toDateString()?`Today, ${fmtT(d)}`:fmtDT(d)};
+const fmtMB=mb=>mb>=1024?(mb/1024).toFixed(2)+' GB':mb.toFixed(1)+' MB';
+const sha=s=>{let h=2166136261,o='';for(let k=0;k<8;k++){for(const c of s+k){h^=c.charCodeAt(0);h=Math.imul(h,16777619)>>>0}o+=h.toString(16).padStart(8,'0')}return o};
+
+const DEVICE={model:'Dell OptiPlex 3000 Thin Client',os:'Windows 11 IoT Enterprise LTSC 2024',name:'TC-FIN-0142',tag:'HJA7589',ip:'192.168.0.41',bios:'1.24.0',freeGB:18.4};
+const CATS=[{id:'all',l:'All updates',i:'all'},{id:'security',l:'Security',i:'shield'},{id:'dell',l:'Dell Apps',i:'apps'},{id:'vdi',l:'VDI & UC apps',i:'vdi'},{id:'browser',l:'Browser',i:'globe'},{id:'drivers',l:'Drivers',i:'disk'},{id:'bios',l:'BIOS',i:'shield'},{id:'firmware',l:'Firmware',i:'chip'},{id:'oskb',l:'OS KBs',i:'win'},{id:'os',l:'OS Images',i:'win'}];
+const CATL={security:'Security',dell:'Dell Apps',vdi:'VDI & Unified Communications',browser:'Browser',drivers:'Drivers',bios:'BIOS',firmware:'Firmware',oskb:'OS KBs',os:'OS Images'};
+const IMP={crit:'Critical',rec:'Recommended',opt:'Optional'};
+const COMPAT=['Dell OptiPlex 3000 Thin Client','Dell Pro Slim Thin Client (QCS1250)','Dell Latitude 3440 Thin Client','Dell OptiPlex All-in-One 7410 Thin Client'];
+
+/* ================= Data ================= */
+function ITEMS(){return [
+ {id:'dda',name:'Dell Device Agent',vendor:'Dell Inc.',cat:'dell',cur:'16.0.0.1',next:'17.0.0.1',imp:'rec',size:249.22,impact:'live',date:'2026-09-30',pkg:'V8MPD',wms:true,
+  desc:'Agent component for Windows IoT Enterprise clients. Enables integration with Dell Wyse Management Suite (WMS) and supports remote client administration, monitoring and OTA update orchestration.',
+  fixes:['Adds OTA update job orchestration commands from WMS','Improves check-in reliability through authenticated proxies','Reports UWF servicing-mode status and per-update results to WMS','Security hardening of local IPC channel'],
+  info:'The agent service restarts during installation (about 30 seconds). WMS check-in resumes automatically; no reboot is needed.',
+  versions:[['17.0.0.1','2026-09-30'],['16.0.0.1','2026-05-29'],['15.0.0.2','2026-02-27'],['14.9.0.3','2025-11-28']]},
+ {id:'dai',name:'Dell Application Installer',vendor:'Dell Inc.',cat:'dell',cur:'26.06.0.2',next:'26.09.0.1',imp:'opt',size:84.6,impact:'live',date:'2026-09-30',pkg:'4K7RN',
+  desc:'Installs and maintains Dell-provided thin client applications and their dependencies on Windows IoT Enterprise devices.',
+  fixes:['Supports delta packages to reduce download size by up to 60%','Fixes silent-install return code mapping for MSI 3010','Adds SHA-256 manifest validation'],
+  info:'Live update. No user impact.',versions:[['26.09.0.1','2026-09-30'],['26.06.0.2','2026-06-24'],['26.03.0.1','2026-03-18']]},
+ {id:'aws',name:'Amazon WorkSpaces',vendor:'Amazon Web Services',cat:'vdi',cur:'5.30.0',next:'5.31.1',imp:'rec',size:212.4,impact:'live',date:'2026-10-14',pkg:'AW531',
+  desc:'Amazon WorkSpaces client for connecting to WorkSpaces Personal and Pools over DCV and PCoIP.',
+  fixes:['Improved multi-monitor handling for DCV sessions','Webcam redirection performance improvements','Fixes reconnect after network change'],
+  info:'Active WorkSpaces sessions are disconnected during installation.',versions:[['5.31.1','2026-10-14'],['5.30.0','2026-08-05'],['5.29.2','2026-05-20']]},
+ {id:'wapp',name:'Windows App',vendor:'Microsoft',cat:'vdi',cur:'2.0.780.0',next:null,imp:'rec',size:96.3,impact:'live',date:'2026-10-21',pkg:'WA2780',
+  desc:'Microsoft Windows App for Azure Virtual Desktop, Windows 365, Microsoft Dev Box and Remote Desktop Services.',
+  fixes:['Teams media optimization reliability fixes','Improved single sign-on with Microsoft Entra ID'],
+  info:'Live update.',versions:[['2.0.780.0','2026-10-21'],['2.0.703.0','2026-08-26'],['2.0.640.0','2026-06-30']]},
+ {id:'hzn',name:'Omnissa Horizon Client',vendor:'Omnissa',cat:'vdi',cur:'2603 (8.18.0)',next:'2609 (8.19.0)',imp:'crit',size:318.7,impact:'restart',date:'2026-10-08',pkg:'HZ2609',wms:true,
+  desc:'Omnissa Horizon Client for Windows. Connects to Horizon virtual desktops and published applications using Blast Extreme.',
+  fixes:['Security: resolves CVE-2026-31842 (USB redirection privilege escalation, CVSS 8.1)','Blast codec performance improvements on Intel Celeron platforms','Fixes printer redirection for Unicode queue names'],
+  info:'Requires a device restart to update USB and printer redirection drivers. Active Horizon sessions are disconnected.',versions:[['2609 (8.19.0)','2026-10-08'],['2603 (8.18.0)','2026-04-02'],['2512 (8.17.0)','2025-12-10']]},
+ {id:'ctx',name:'Citrix Workspace',vendor:'Cloud Software Group',cat:'vdi',cur:'2603.1',next:'2609',imp:'crit',size:431.2,impact:'restart',date:'2026-10-02',pkg:'CW2609',wms:true,proc:'Citrix Workspace (1 active session)',
+  desc:'Citrix Workspace app for Windows. Provides access to Citrix Virtual Apps and Desktops and DaaS. Includes the Microsoft Teams optimization plugin.',
+  fixes:['Security: resolves CVE-2026-28811 (HDX local privilege escalation)','Updated Microsoft Teams VDI optimization (new Teams)','Improved HDX adaptive transport over high-latency links'],
+  info:'Requires a device restart. The active Citrix session will be closed — users should save their work. Installed with /silent /AutoUpdateCheck=disabled so Dell OTA remains the single update owner.',versions:[['2609','2026-10-02'],['2603.1','2026-04-15'],['2603','2026-03-25'],['2511','2025-11-19']]},
+ {id:'zoom',name:'Zoom VDI Plugin',vendor:'Zoom Communications',cat:'vdi',cur:'6.5.12.26810',next:'7.0.11.27050',imp:'opt',size:48.9,impact:'live',date:'2026-09-28',pkg:'ZV7011',
+  desc:'Zoom Virtual Desktop Infrastructure (VDI) plugin. Offloads Zoom audio and video processing from the virtual desktop to the thin client.',
+  fixes:['Supports Zoom Workplace VDI 7.0 host','Background blur offload for Citrix and Horizon'],
+  info:'Live update. Restart the VDI session to load the new plugin.',versions:[['7.0.11.27050','2026-09-28'],['6.5.12.26810','2026-06-12']]},
+ {id:'webex',name:'Cisco Webex App VDI Plugin',sub:'Bundled Webex Meetings VDI plugin',vendor:'Cisco Systems',cat:'vdi',cur:'46.2.0.31210',next:'46.8.0.35631',imp:'opt',size:121.5,impact:'live',date:'2026-09-28',pkg:'WX4680',
+  desc:'Cisco Webex App VDI plugin with bundled Webex Meetings VDI plugin for optimized calling and meetings in virtual desktops.',
+  fixes:['Bundled Webex Meetings VDI plugin 46.8','Echo cancellation improvements on USB headsets'],
+  info:'Live update. Restart the VDI session to load the new plugin.',versions:[['46.8.0.35631','2026-09-28'],['46.2.0.31210','2026-03-04']]},
+ {id:'jabber',name:'Cisco Jabber VDI Plugin',vendor:'Cisco Systems',cat:'vdi',cur:'15.1.4.59822',next:'15.2.1.60904',imp:'opt',size:74.2,impact:'live',date:'2026-09-28',pkg:'JB1521',
+  desc:'Cisco Jabber Softphone for VDI client package. Enables optimized Jabber calling in Citrix, Horizon and AVD sessions.',
+  fixes:['Adds support for Jabber 15.2 hosted agents','Fixes call drop on session roaming'],
+  info:'Live update.',versions:[['15.2.1.60904','2026-09-28'],['15.1.4.59822','2026-07-09']]},
+ {id:'edge',name:'Microsoft Edge',vendor:'Microsoft',cat:'browser',cur:'146.0.3856.62',next:'147.0.3912.51',imp:'crit',size:176.8,impact:'live',date:'2026-11-13',pkg:'ME147',wms:true,proc:'Microsoft Edge (3 windows)',
+  desc:'Microsoft Edge Stable channel (enterprise MSI). Edge self-update is disabled on Dell thin clients; Dell OTA delivers validated builds.',
+  fixes:['Security: fixes for 11 vulnerabilities including CVE-2026-9921 (V8, actively exploited)','Improved IE mode for line-of-business sites'],
+  info:'Edge will be closed during installation and tabs restored on next launch.',versions:[['147.0.3912.51','2026-11-13'],['146.0.3856.62','2026-10-16'],['145.0.3800.97','2026-09-18']]},
+ {id:'intelgfx',name:'Intel Graphics Driver',vendor:'Intel Corporation',cat:'drivers',cur:'31.0.101.5252',next:'31.0.101.5333',imp:'rec',size:642.5,impact:'restart',date:'2026-10-28',pkg:'IG5333',wms:true,
+  desc:'Intel UHD Graphics driver for Intel Celeron and Core i3/i5 processors in OptiPlex 3000 Thin Client.',
+  fixes:['Fixes display corruption when using multiple monitors with Citrix Workspace','Improves GPU virtualization performance for VDI sessions','Security: resolves CVE-2026-41172 (privilege escalation, CVSS 7.1)'],
+  info:'Requires a device restart. The display may flicker during installation.',versions:[['31.0.101.5333','2026-10-28'],['31.0.101.5252','2026-09-18'],['31.0.101.5184','2026-08-14']]},
+ {id:'realtek',name:'Realtek Audio Driver',vendor:'Realtek Semiconductor',cat:'drivers',cur:'6.0.9605.1',next:'6.0.9655.1',imp:'opt',size:124.8,impact:'live',date:'2026-10-15',pkg:'RA9655',
+  desc:'Realtek High Definition Audio driver for built-in speakers and audio jack.',
+  fixes:['Fixes audio dropout during Webex VDI calls','Improves microphone noise cancellation for Cisco Jabber'],
+  info:'Live update. Audio will briefly mute during installation.',versions:[['6.0.9655.1','2026-10-15'],['6.0.9605.1','2026-08-20']]},
+ {id:'intelwifi',name:'Intel Wi-Fi Driver',vendor:'Intel Corporation',cat:'drivers',cur:'23.80.0.6',next:'23.90.0.2',imp:'rec',size:38.4,impact:'live',date:'2026-10-22',pkg:'IW2390',wms:true,
+  desc:'Intel Wi-Fi 6 AX201 driver for wireless connectivity.',
+  fixes:['Improves roaming stability between access points','Fixes connection drops after resuming from sleep','Security: resolves CVE-2026-41588 (buffer overflow, CVSS 6.5)'],
+  info:'Live update. Wi-Fi will briefly disconnect during installation.',versions:[['23.90.0.2','2026-10-22'],['23.80.0.6','2026-09-01']]},
+ {id:'bios',name:'BIOS',vendor:'Dell Inc.',cat:'bios',cur:'1.24.0',next:'1.25.0',imp:'crit',size:18.2,impact:'restart',date:'2026-11-05',pkg:'BI1250',wms:true,
+  desc:'BIOS firmware for Dell OptiPlex 3000 Thin Client.',
+  fixes:['Security: resolves CVE-2026-43215 (BIOS privilege escalation, CVSS 8.2)','Adds support for new SSD models','Improves UEFI boot compatibility with Windows 11 IoT Enterprise LTSC 2024'],
+  info:'Requires a device restart. The system will restart twice during the update. Do not power off during BIOS update.',versions:[['1.25.0','2026-11-05'],['1.24.0','2026-08-15'],['1.23.0','2026-05-20']]},
+ {id:'me',name:'Intel ME Firmware',vendor:'Intel Corporation',cat:'firmware',cur:'16.1.30',next:'16.1.35',imp:'rec',size:42.6,impact:'restart',date:'2026-10-18',pkg:'ME1635',wms:true,
+  desc:'Intel Management Engine firmware for the platform.',
+  fixes:['Security: resolves CVE-2026-42117 (ME privilege escalation, CVSS 7.8)','Improves stability with Dell Device Agent check-in'],
+  info:'Requires a device restart. The system will restart once during the update.',versions:[['16.1.35','2026-10-18'],['16.1.30','2026-08-10']]},
+ {id:'kb5048621',name:'KB5048621 (October 2026 Cumulative)',vendor:'Microsoft',cat:'oskb',cur:'26100.3775',next:'26100.6584',imp:'crit',size:842.6,impact:'restart',date:'2026-10-14',pkg:'KB5048621',wms:true,
+  desc:'Windows 11 IoT Enterprise LTSC 2024 cumulative quality update for October 2026.',
+  fixes:['Security: fixes 17 vulnerabilities including CVE-2026-43801 (Windows Kernel, actively exploited)','Fixes VDI session disconnects when using USB redirection','Improves reliability of UWF Servicing Mode'],
+  info:'Requires a device restart. The update is applied via Windows Update; Dell OTA triggers the installation in the maintenance window.',versions:[['26100.6584','2026-10-14'],['26100.3775','2026-09-10'],['26100.2361','2026-08-13']]},
+ {id:'kb5048622',name:'KB5048622 (October 2026 .NET)',vendor:'Microsoft',cat:'oskb',cur:'8.0.11',next:'8.0.12',imp:'rec',size:156.4,impact:'live',date:'2026-10-14',pkg:'KB5048622',
+  desc:'.NET Framework 8.0 cumulative update for October 2026.',
+  fixes:['Security: resolves CVE-2026-41234 (remote code execution, CVSS 7.5)','Fixes crashes in VDI client applications using .NET'],
+  info:'Live update. Applications using .NET will be restarted during installation.',versions:[['8.0.12','2026-10-14'],['8.0.11','2026-09-10'],['8.0.10','2026-08-13']]}
+]}
+function HIST(){const d=(s)=>new Date(s);return [
+ {d:d('2026-11-02T09:12:00'),name:'Microsoft Edge',from:'145.0.3800.97',to:'146.0.3856.62',r:'ok',by:'Local · Admin',rep:true},
+ {d:d('2026-10-15T02:14:00'),name:'Cisco Jabber VDI Plugin',from:'15.1.3.58710',to:'15.1.4.59822',r:'ok',by:'WMS · Scheduled',rep:true},
+ {d:d('2026-10-15T02:08:00'),name:'Citrix Workspace',from:'2603',to:'2603.1',r:'ok',by:'WMS · Scheduled',rep:true},
+ {d:d('2026-09-03T14:52:00'),name:'Dell Application Installer',from:'26.03.0.1',to:'26.06.0.2',r:'ok',by:'Local · Admin (retry)',rep:true},
+ {d:d('2026-09-03T14:40:00'),name:'Dell Application Installer',from:'26.03.0.1',to:'26.06.0.2',r:'fail',err:'0x80070643 – installation failed, rolled back',by:'Local · Admin',rep:true},
+ {d:d('2026-03-12T02:30:00'),name:'OS image',from:'Dell image 2510 (A03)',to:'Dell image 2603 (A01)',r:'ok',by:'WMS · OS Image policy',rep:true}
+]}
+function NOTIFS(){return [
+ {id:1,t:'16 updates available',b:'5 critical security updates (Microsoft Edge, Citrix Workspace, Omnissa Horizon Client, BIOS, KB5048621) are ready to install.',time:'Today, 9:34 AM',unread:true,act:'updates'},
+ {id:2,t:'New OS image available',b:'Dell image 2609 (A02) for OptiPlex 3000 Thin Client is available from Dell Support.',time:'Today, 9:34 AM',unread:true,act:'os'},
+ {id:3,t:'Security update installed',b:'Microsoft Edge was updated to 146.0.3856.62.',time:'02 Nov, 9:12 AM',unread:false}
+]}
+function seed(){return {
+ wf:true,wfPending:null,wms:'registered',ac:true,net:'online',failNext:false,
+ win:'closed',max:false,view:'home',tab:'available',cat:'all',impFilter:'all',q:'',sel:new Set(),showSkipped:false,
+ drawer:null,dsec:'fixes',notifOpen:false,modal:null,checking:false,cancel:false,
+ lastChecked:new Date(Date.now()-47*60000),scheduled:null,
+ prefs:{source:'dell',share:'\\\\fs01\\dell-ota$',proxy:true,freq:'daily',autoDl:true,metered:'pause',auto:'off',winStart:'02:00',winEnd:'04:00',defer:'0',restart:'notify',postpone:true,uwfAuto:true},
+ items:ITEMS(),history:HIST(),notifs:NOTIFS(),nid:10,
+ os:{cur:{id:'2603',label:'Dell image 2603 (A01)',build:'26100.3775',date:'12 Mar 2026',by:'WMS OS Image policy'},
+  images:[
+   {id:'2609',label:'Dell image 2609 (A02)',build:'26100.6584',date:'2026-09-30',size:8601,latest:true,
+    notes:['Windows 11 IoT Enterprise LTSC 2024 with September 2026 cumulative update','Dell Device Agent 17.0.0.1 and Dell Application Installer 26.09.0.1 pre-installed','Updated Intel graphics, Realtek audio and Wi‑Fi drivers','Validated with BIOS 1.24.0'],includes:{dda:'17.0.0.1',dai:'26.09.0.1'}},
+   {id:'2606',label:'Dell image 2606 (A01)',build:'26100.4946',date:'2026-06-25',size:8344,
+    notes:['Windows 11 IoT Enterprise LTSC 2024 with June 2026 cumulative update','Dell Device Agent 16.0.0.1'],includes:{}}
+  ]}
+}}
+let S=seed();
+
+/* ================= Helpers ================= */
+const item=id=>S.items.find(i=>i.id===id);
+const managed=()=>S.wms==='managed';
+const avail=()=>S.items.filter(i=>i.next&&!i.skipped);
+const skippedList=()=>S.items.filter(i=>i.next&&i.skipped);
+const osUpdate=()=>{const l=S.os.images.find(x=>x.latest);return l&&l.id>S.os.cur.id?l:null};
+const restartPending=()=>S.items.filter(i=>i.restartPending);
+const totalAvail=()=>avail().length+(osUpdate()?1:0);
+const srcName=()=>({dell:'Dell Update Catalog (cloud)',wms:'WMS repository',share:'Network share '+S.prefs.share})[S.prefs.source];
+const windowLabel=()=>`Tonight, ${S.prefs.winStart}–${S.prefs.winEnd}`;
+const estMin=list=>Math.max(1,Math.ceil((list.reduce((a,i)=>a+i.size,0)/25+list.length*35)/60));
+const isSched=id=>S.scheduled&&S.scheduled.ids.includes(id);
+function notify(t,b,act,itemId){S.notifs.unshift({id:++S.nid,t,b,time:relT(new Date()),unread:true,act,item:itemId})}
+
+/* ================= Views ================= */
+function vSplash(){return `<div class="splash">${dellLogo(false)}<span class="spinner"></span>
+ <div class="foot">${ic('gear',22)}<span>Dell Application Control Center</span><span class="pill">Write Filter is <b>${S.wf?'ON':'OFF'}</b></span></div></div>`}
+
+function vHome(){
+ const a=avail(),crit=a.filter(i=>i.imp==='crit').length,n=totalAvail(),unread=S.notifs.filter(x=>x.unread).length,rp=restartPending().length;
+ const wmsTxt={none:'Not registered',registered:'Registered · Finance-TC',managed:'Managed · Finance-TC'}[S.wms];
+ let ut= n?`${n} update${n>1?'s':''} available${crit?` · <b style="color:#ffb3b0">${crit} critical</b>`:''}`:'Your device is up to date';
+ if(rp) ut=`Restart required to finish ${rp} update${rp>1?'s':''}`;
+ return `<div class="scroll"><div class="home">
+ <div class="home-left">
+  <div class="eyebrow">Welcome to your</div>
+  <h1 class="device">${DEVICE.model}</h1>
+  <dl class="kv"><dt>OS</dt><dd>${DEVICE.os}</dd><dt>Device Name</dt><dd>${DEVICE.name}</dd><dt>Service Tag</dt><dd>${DEVICE.tag}</dd><dt>IP</dt><dd>${DEVICE.ip}</dd><dt>OS Image</dt><dd>${S.os.cur.label}</dd><dt>WMS</dt><dd>${wmsTxt}</dd></dl>
+  <div class="mini"><div class="r"><b style="font-weight:500">Write Filter</b><span class="tgw">${S.wf?'ON':'OFF'}<button class="tg ${S.wf?'on':''}" data-act="wfToggle"></button></span></div>
+   <a data-act="wfToggle">Make changes in Write Filter Settings</a></div>
+  <button class="notif-link" data-act="notifs">${ic('bell')} Notifications ${unread?`<span class="ndot">${unread}</span>`:''}</button>
+ </div>
+ <div>
+  <div class="tiles">
+   <button class="tile" data-act="go" data-view="updates" style="position:relative">
+    ${n?`<span class="dot"></span>`:''}
+    ${ic('upd',20)}
+    <span>Software Updates</span>
+    <span class="chev">${ic('chev',18)}</span></button>
+   <button class="tile" data-act="na">${ic('wand',20)} Easy Setup <span class="chev">${ic('chev',18)}</span></button>
+   <button class="tile" data-act="na">${ic('sliders',20)} WMS Settings <span class="chev">${ic('chev',18)}</span></button>
+   <button class="tile" data-act="na">${ic('info',20)} Device Overview <span class="chev">${ic('chev',18)}</span></button>
+   <button class="tile" data-act="wfToggle">${ic('wf',20)} Write Filter Settings <span class="chev">${ic('chev',18)}</span></button>
+  </div>
+  <div class="eyebrow">Utilities</div>
+  <div class="utils">
+   <button class="util" data-act="na">${ic('shortcut')}<span>Manage <b>Windows Shortcut</b></span></button>
+   <button class="util" data-act="na">${ic('login')}<span>Enable <b>Auto-Login</b></span></button>
+   <button class="util" data-act="exportLogs">${ic('logs')}<span>Export <b>Device Logs</b></span></button>
+   <button class="util" data-act="na">${ic('image')}<span>Manage <b>Image Settings</b></span></button>
+   <button class="util" data-act="na">${ic('tools')}<span>Setup <b>ALM</b></span></button>
+  </div>
+ </div></div></div>`}
+
+function vUpdates(){
+ const a=avail(),crit=a.filter(i=>i.imp==='crit').length,n=totalAvail(),rp=restartPending();
+ let dot='g',head='Your device is up to date';
+ if(n){dot=crit?'r':'a';head=crit?`${crit} critical update${crit>1?'s':''} · ${n} total available`:`${n} update${n>1?'s':''} available`}
+ if(rp.length){dot='a';head='Restart required to finish installing updates'}
+ const wmsPill={none:`<span class="tagp">Locally managed</span>`,registered:`<span class="tagp wms">${ic('sliders',12)} WMS · local control</span>`,managed:`<span class="tagp wms">${ic('lock',12)} Managed by WMS</span>`}[S.wms];
+ const tabs=[['available',`Available<span class="cnt">${n}</span>`],['installed','Installed'],['history','History'],['prefs','Preferences']];
+ let body={available:tAvail,installed:tInstalled,history:tHistory,prefs:tPrefs}[S.tab]();
+ return `<div class="scroll">
+ <div class="page-head"><button class="back" data-act="go" data-view="home">${ic('back',20)}</button><h1>Software Updates</h1></div>
+ <p class="sub">Over-the-air updates for Dell apps, VDI &amp; UC clients, browser and OS images on this device.</p>
+ <div class="status">
+  <div class="st-main"><span class="sdot ${dot}"></span><div><b>${head}</b><small>Last checked ${relT(S.lastChecked)} · Source: ${esc(srcName())}</small></div></div>
+  <span class="tagp ${S.wf?'on':'off'}">${ic('wf',12)} Write Filter ${S.wf?'ON':'OFF'}</span>${wmsPill}
+  ${rp.length?`<button class="btn sm primary" data-act="restart">${ic('power',14)} Restart now</button>`:''}
+  <button class="btn sm" data-act="check" ${S.checking?'disabled':''}>${S.checking?spin()+' Checking…':ic('refresh',14)+' Check for updates'}</button>
+ </div>
+ ${banners()}
+ <div class="tabs">${tabs.map(([k,l])=>`<button class="tab ${S.tab===k?'active':''}" data-act="tab" data-tab="${k}">${l}</button>`).join('')}</div>
+ ${body}
+ </div>`}
+
+function banners(){
+ let h='';
+ if(S.net==='offline')h+=`<div class="banner err">${ic('net',18)}<div><b>No network connection.</b> Updates can't be checked or downloaded. Already-downloaded updates can still be installed.</div></div>`;
+ if(managed())h+=`<div class="banner info">${ic('lock',18)}<div><b>Updates on this device are managed by Wyse Management Suite</b> (group <b>Finance-TC</b>, policy “Thin Client OTA – Ring 2”). WMS-assigned updates install in the maintenance window <b>${windowLabel()}</b>. Local installs and preferences are locked by policy.</div></div>`;
+ if(S.wf&&S.tab==='available'&&totalAvail())h+=`<div class="banner warn">${ic('wf',18)}<div><b>Write Filter is ON.</b> Please disable it to apply updates.</div><div class="tgw" style="margin-left:auto">${S.wf?'ON':'OFF'}<button class="tg ${S.wf?'on':''}" data-act="wfToggle"></button></div></div>`;
+ if(S.scheduled)h+=`<div class="banner info">${ic('cal',18)}<div><b>${S.scheduled.ids.length} update${S.scheduled.ids.length>1?'s':''} scheduled</b> for ${S.scheduled.when}${S.scheduled.prefetch?' · pre-downloaded':''}.</div><div class="bx"><button class="link" data-act="runWindow">Run now</button><button class="link" data-act="unschedule">Cancel schedule</button></div></div>`;
+ return h}
+
+function rowTags(i){let t=[];
+ if(i.restartPending)t.push(`<span class="mtag a">${ic('power',11)} Restart pending</span>`);
+ if(i.downloaded)t.push(`<span class="mtag g">${ic('check',11)} Downloaded · ready to install</span>`);
+ if(isSched(i.id))t.push(`<span class="mtag b">${ic('cal',11)} Scheduled · ${S.scheduled.when}</span>`);
+ if(managed()&&i.wms&&i.next)t.push(`<span class="mtag b">${ic('lock',11)} WMS-assigned · ${windowLabel()}</span>`);
+ if(i.proc&&i.next)t.push(`<span class="mtag a">${ic('apps',11)} Running</span>`);
+ if(i.skipped)t.push(`<span class="mtag">${ic('skip',11)} Skipped</span>`);
+ return t.length?`<div class="tags">${t.join('')}</div>`:''}
+
+function tAvail(){
+ const a=avail(),os=osUpdate(),q=S.q.trim().toLowerCase();
+ const isSec=S.cat==='security';
+ const baseList=S.items.filter(i=>i.next&&(!i.skipped||S.showSkipped));
+ const list=baseList.filter(i=>isSec?i.imp==='crit':S.cat==='all'||i.cat===S.cat);
+ const impList=S.impFilter==='all'?list:list.filter(i=>i.imp===S.impFilter);
+ const count=c=>c==='all'?a.length+(os?1:0):c==='os'?(os?1:0):c==='security'?a.filter(i=>i.imp==='crit').length:a.filter(i=>i.cat===c).length;
+ const critC=c=>a.filter(i=>(c==='all'||c==='security'||i.cat===c)&&i.imp==='crit').length;
+ const cats=CATS.map(c=>`<button class="cat ${S.cat===c.id?'active':''}" data-act="cat" data-cat="${c.id}">${ic(c.i)} ${c.l}<span class="n ${critC(c.id)?'crit':''}">${count(c.id)}</span></button>`).join('');
+ const sk=skippedList().length;
+ const impOpts=[['all','All'],['crit','Critical'],['rec','Recommended'],['opt','Optional']];
+ const side=`<aside class="cats">${cats}<div class="cat-sep"></div>
+  ${S.sel.size?`<button class="link" data-act="selNone">Deselect all</button>`:''}
+  ${sk?`<button class="link" data-act="toggleSkipped">${S.showSkipped?'Hide':'Show'} skipped (${sk})</button>`:''}</aside>`;
+ if(S.cat==='os')return `<div class="avail">${side}<section>${osPanel()}</section></div>`;
+ let workList=impList;
+ if(q)workList=workList.filter(i=>(i.name+' '+i.vendor).toLowerCase().includes(q));
+ const order={crit:0,rec:1,opt:2};
+ let rows='';
+ const groups=isSec?['dell','vdi','browser','drivers','bios','firmware','oskb']:S.cat==='all'?['dell','vdi','browser','drivers','bios','firmware','oskb']:[S.cat];
+ groups.forEach(g=>{const gl=workList.filter(i=>i.cat===g).sort((x,y)=>order[x.imp]-order[y.imp]);if(!gl.length)return;
+  if(S.cat==='all'||isSec)rows+=`<tr class="grp"><td colspan="7">${CATL[g]}</td></tr>`;
+  gl.forEach(i=>{rows+=`<tr class="click ${S.sel.has(i.id)?'selrow':''}" id="row-${i.id}" data-act="details" data-id="${i.id}">
+   <td style="width:38px"><input type="checkbox" data-act="sel" data-id="${i.id}" ${S.sel.has(i.id)?'checked':''} ${managed()||i.skipped?'disabled':''}></td>
+   <td><div class="nm">${i.name}${i.sub?` <span class="muted" style="font-weight:400;font-size:12px">(${i.sub})</span>`:''}</div><div class="ver">${i.cur} → <b>${i.next}</b> · ${i.vendor}</div>${rowTags(i)}</td>
+   <td>${chip(i.imp)}</td><td>${impact(i.impact)}</td><td class="muted">${fmtMB(i.size)}</td><td class="muted">${fmtD(i.date)}</td><td style="width:34px">${ic('chev')}</td></tr>`})});
+ const osCard=(S.cat==='all'&&os&&!q)?`<div class="img-row" style="margin-top:12px">${ic('win',22)}<div class="meta"><b>OS image update available — ${os.label}</b><small>Current: ${S.os.cur.label} · ${fmtMB(os.size)} · Requires reimage (erases system drive)</small></div><button class="btn sm" data-act="cat" data-cat="os">Review OS images ${ic('chev',14)}</button></div>`:'';
+ const table=rows?`<table class="grid"><thead><tr><th><input type="checkbox" data-act="selVisible" ${managed()?'disabled':''} ${workList.length&&workList.filter(i=>!i.skipped).every(i=>S.sel.has(i.id))?'checked':''}></th><th>Update</th><th>Importance <select id="impFilterSelect" class="sel" style="min-width:0;width:100px;margin-left:8px;background:#21344d;border-color:rgba(255,255,255,.18);font-size:11px;padding:3px 6px">${[['all','All'],['crit','Critical'],['rec','Recommended'],['opt','Optional']].map(([v,l])=>`<option value="${v}" ${S.impFilter===v?'selected':''}>${l}</option>`).join('')}</select></th><th>Post Install</th><th>Size</th><th>Released</th><th></th></tr></thead><tbody>${rows}</tbody></table>`
+  :`<div class="empty">${ic('checkc',36)}<b>${q?'No updates match “'+esc(S.q)+'”':'Everything here is up to date'}</b>${q?'':'We\'ll notify you when new updates are published.'}</div>`;
+ return `<div class="avail">${side}<section>${table}${osCard}</section></div>${footer()}`}
+
+function footer(){
+ if(managed()){const w=avail().filter(i=>i.wms);
+  return `<div class="footer-bar"><div class="sum">${ic('lock')} <span>Deployed by WMS policy · <b>${w.length}</b> assigned update${w.length!==1?'s':''} · next window <b>${windowLabel()}</b></span></div>
+  <div class="acts"><button class="btn primary" data-act="installAssigned" ${w.length&&!S.wf?'':'disabled'}>Install assigned now${w.length?` (${w.length})`:''}</button></div></div>`}
+ const sel=[...S.sel].map(item).filter(Boolean),size=sel.reduce((a,i)=>a+i.size,0),rs=sel.some(i=>i.impact==='restart'),ok=sel.length&&!S.wf;
+ return `<div class="footer-bar"><div class="sum">${sel.length?`<span><b>${sel.length}</b> update${sel.length>1?'s':''} selected</span><span class="big">${fmtMB(size)}</span><span>${ic('clock',14)} ~${estMin(sel)} min</span><span>${rs?`${ic('power',14)} Restart required`:`${ic('check',14)} No restart`}</span>`:'<span>Select updates to download or install</span>'}${S.wf?`<span style="color:#f6c96d">${ic('lock',14)} Disable Write Filter to install</span>`:''}</div>
+ <div class="acts"><button class="btn" data-act="downloadOnly" ${ok?'':'disabled'}>${ic('download',14)} Download only</button><button class="btn" data-act="schedule" ${ok?'':'disabled'}>${ic('cal',14)} Schedule…</button><button class="btn primary" data-act="install" ${ok?'':'disabled'}>Install now${sel.length?` (${sel.length})`:''}</button></div></div>`}
+
+const chip=k=>`<span class="chip c-${k}">${IMP[k]}</span>`;
+const impact=k=>({live:`<span class="imp live">${ic('check',13)} No restart</span>`,restart:`<span class="imp restart">${ic('power',13)} Restart required</span>`,reimage:`<span class="imp reimage">${ic('warn',13)} Reimage</span>`})[k];
+
+function osPanel(){const c=S.os.cur,up=osUpdate();
+ return `<div class="oscard"><h3>${ic('win')} Current OS image</h3><div class="osgrid">
+  <div><span>Image</span>${c.label}</div><div><span>OS</span>${DEVICE.os}</div><div><span>Build</span>${c.build}</div><div><span>Applied</span>${c.date} · ${c.by}</div></div></div>
+ ${managed()?`<div class="banner info">${ic('lock',18)}<div>OS image deployment is controlled by the WMS <b>OS Image policy</b>. Contact your WMS administrator to schedule a reimage.</div></div>`:''}
+ <div class="sec-t">Images from Dell Support for ${DEVICE.model} (service tag ${DEVICE.tag})</div>
+ ${S.os.images.map(m=>{const isCur=m.id===c.id,older=m.id<c.id;return `<div class="img-row">${ic('disk',22)}<div class="meta">
+   <b>${m.label}</b> ${m.latest?'<span class="mtag b">Latest</span>':''} ${isCur?'<span class="mtag g">Installed</span>':''}
+   <small>${DEVICE.os} · Build ${m.build} · ${fmtD(m.date)} · ${fmtMB(m.size)} · ${impact('reimage')}</small>
+   <ul>${m.notes.map(n=>`<li>${n}</li>`).join('')}</ul></div>
+   ${isCur?'':`<button class="btn ${m.latest&&!older?'primary':''} sm" data-act="reimage" data-img="${m.id}" ${managed()?'disabled':''}>${older?'Reimage to older…':'Reimage device…'}</button>`}</div>`}).join('')}
+ ${up?'':`<div class="banner ok" style="margin-top:8px">${ic('checkc',18)}<div>This device is running the latest Dell OS image.</div></div>`}
+ <p class="muted" style="font-size:12px;margin:10px 0 20px;color:#9fb0c5">Reimaging replaces the operating system and erases the system drive. Windows quality updates on top of an image are delivered by Windows Update / WMS and are outside this module.</p>`}
+
+function tInstalled(){
+ const rows=['dell','vdi','browser','drivers','bios','firmware','oskb'].map(g=>`<tr class="grp"><td colspan="6">${CATL[g]}</td></tr>`+S.items.filter(i=>i.cat===g).map(i=>{
+  const idx=i.versions.findIndex(v=>v[0]===i.cur),prev=i.versions[idx+1];
+  const st=i.restartPending?`<span class="mtag a">${ic('power',11)} Restart pending</span>`:i.next&&!i.skipped?`<span class="mtag b">Update available · ${i.next}</span>`:`<span class="mtag g">${ic('check',11)} Up to date</span>`;
+  return `<tr><td><div class="nm">${i.name}</div><div class="ver">${i.vendor}</div></td><td>${i.cur}</td><td>${st}</td>
+  <td><select class="sel" style="min-width:150px" data-pol="${i.id}" ${managed()?'disabled':''}>${[['auto','Install automatically'],['notify','Notify only'],['manual','Manual']].map(([v,l])=>`<option value="${v}" ${(i.policy||'notify')===v?'selected':''}>${l}</option>`).join('')}</select></td>
+  <td><button class="link" data-act="details" data-id="${i.id}">Details</button>${prev?` &nbsp;·&nbsp; <button class="link" data-act="rollback" data-id="${i.id}" ${managed()?'disabled':''}>Roll back to ${prev[0]}</button>`:''}</td></tr>`}).join('')).join('');
+ return `<table class="grid" style="margin-bottom:24px"><thead><tr><th>Component</th><th>Installed version</th><th>Status</th><th>Update policy ${managed()?ic('lock',12):''}</th><th>Actions</th></tr></thead><tbody>
+ <tr class="grp"><td colspan="6">OS Image</td></tr><tr><td><div class="nm">${S.os.cur.label}</div><div class="ver">${DEVICE.os}</div></td><td>Build ${S.os.cur.build}</td><td>${osUpdate()?`<span class="mtag b">New image · ${osUpdate().label}</span>`:`<span class="mtag g">${ic('check',11)} Latest</span>`}</td><td class="muted">Manual (reimage)</td><td><button class="link" data-act="cat" data-cat="os">View images</button></td></tr>
+ ${rows}</tbody></table>`}
+
+function tHistory(){
+ return `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><span class="muted" style="font-size:12px;color:#9fb0c5">${S.history.length} events · results are ${S.wms==='none'?'stored locally':'reported to WMS'}</span><button class="btn sm" data-act="exportLogs">${ic('download',14)} Export update logs</button></div>
+ <table class="grid" style="margin-bottom:24px"><thead><tr><th>Date &amp; time</th><th>Update</th><th>Change</th><th>Result</th><th>Initiated by</th><th>WMS</th></tr></thead><tbody>
+ ${S.history.map(h=>`<tr><td class="muted">${fmtDT(h.d)}</td><td class="nm">${h.name}</td><td class="muted">${h.from} → ${h.to}</td>
+ <td>${h.r==='ok'?`<span class="mtag g">${ic('check',11)} Success</span>`:h.r==='rb'?`<span class="mtag b">${ic('undo',11)} Rolled back</span>`:`<span class="mtag" style="background:rgba(239,83,80,.15);color:#ff9a97">${ic('close',11)} Failed</span><div class="ver">${h.err}</div>`}</td>
+ <td class="muted">${h.by}</td><td>${h.rep?`<span class="muted">${ic('check',13)} Reported</span>`:'<span class="muted">—</span>'}</td></tr>`).join('')}</tbody></table>`}
+
+function tPrefs(){const p=S.prefs,L=managed(),d=L?'disabled':'';
+ const sel=(k,opts)=>`<select class="sel" data-pref="${k}" ${d}>${opts.map(([v,l,dis])=>`<option value="${v}" ${p[k]===v?'selected':''} ${dis?'disabled':''}>${l}</option>`).join('')}</select>`;
+ const tg=k=>`<span class="tgw">${p[k]?'ON':'OFF'}<button class="tg ${p[k]?'on':''}" data-act="prefTg" data-k="${k}" ${d}></button></span>`;
+ const lk=L?`<span class="lk">${ic('lock',12)} Managed by WMS policy</span>`:'';
+ const row=(l,s,c)=>`<div class="prow"><div class="pl">${l}${s?`<small>${s}</small>`:''}</div>${c}</div>`;
+ return `<div style="padding-bottom:20px">
+ <div class="pref-sec"><h3>${ic('net')} Update source${lk}</h3>
+  ${row('Source','Where this device looks for update packages and catalog metadata.',sel('source',[['dell','Dell Update Catalog (cloud)'],['wms','WMS repository',S.wms==='none'],['share','Local / network share']]))}
+  ${p.source==='share'?row('Share path','UNC path containing a Dell OTA catalog (catalog.xml + packages).',`<input class="inp" data-pref="share" value="${esc(p.share)}" ${d}>`):''}
+  ${row('Use system proxy','Uses the WinHTTP proxy configured on the device.',tg('proxy'))}</div>
+ <div class="pref-sec"><h3>${ic('download')} Check &amp; download${lk}</h3>
+  ${row('Check for updates',null,sel('freq',[['startup','At startup'],['daily','Daily'],['weekly','Weekly'],['manual','Manually only']]))}
+  ${row('Download updates automatically','Pre-downloads packages so installs complete faster in the maintenance window.',tg('autoDl'))}
+  ${row('On metered connections',null,sel('metered',[['pause','Pause downloads'],['crit','Download critical only'],['allow','Allow all downloads']]))}</div>
+ <div class="pref-sec"><h3>${ic('pkg')} Installation${lk}</h3>
+  ${row('Install automatically',null,sel('auto',[['off','Off – notify only'],['crit','Critical only'],['critrec','Critical & recommended'],['all','All updates']]))}
+  ${row('Maintenance window','Automatic and scheduled installs only run in this window.',`<span class="tgw"><input class="inp" style="min-width:0;width:96px" type="time" data-pref="winStart" value="${p.winStart}" ${d}> – <input class="inp" style="min-width:0;width:96px" type="time" data-pref="winEnd" value="${p.winEnd}" ${d}></span>`)}
+  ${row('Defer optional updates',null,sel('defer',[['0','Don\'t defer'],['7','7 days'],['14','14 days'],['30','30 days']]))}
+  ${row('When a restart is required',null,sel('restart',[['notify','Notify signed-in user'],['auto','Restart automatically in window'],['never','Never restart automatically']]))}
+  ${row('Allow user to postpone restart','Up to 3 times, 1 hour each.',tg('postpone'))}</div>
+ <div style="display:flex;gap:10px;justify-content:flex-end"><button class="btn" data-act="prefReset" ${d}>Restore defaults</button><button class="btn primary" data-act="prefSave" ${d}>Save</button></div></div>`}
+
+/* Details drawer */
+function vDrawer(){const i=item(S.drawer);if(!i)return '';
+ const latest=i.versions[0][0],idx=i.versions.findIndex(v=>v[0]===i.cur);
+ const secs=[['fixes','Fixes & Enhancements'],['info','Important Information'],['compat','Compatible Systems'],['integrity','Download & Integrity'],['versions','All Versions']];
+ const v=i.next||i.cur,file=`${i.name.replace(/\s+/g,'')}_${v.split(' ')[0]}.exe`;
+ const sec={fixes:`<h4>Fixes &amp; Enhancements</h4><ul>${i.fixes.map(f=>`<li>${f}</li>`).join('')}</ul>`,
+  info:`<h4>Important Information</h4><p>${i.info}</p>${i.proc?`<p>${ic('warn',14)} <b>${i.proc}</b> is running and will be closed during installation.</p>`:''}<p>Install impact: ${impact(i.impact)}${S.wf?' — with Write Filter ON this update is applied in UWF Servicing Mode.':''}</p>`,
+  compat:`<h4>Compatible Systems</h4><ul>${COMPAT.map(c=>`<li>${c}</li>`).join('')}</ul><h4 style="margin-top:14px">Supported Operating Systems</h4><ul><li>Windows 11 IoT Enterprise LTSC 2024</li><li>Windows 10 IoT Enterprise LTSC 2021</li></ul>`,
+  integrity:`<h4>Download &amp; Integrity</h4><p><b>File name:</b> ${file}<br><b>File size:</b> ${fmtMB(i.size)}<br><b>Publisher:</b> ${i.vendor} · repackaged &amp; signed by Dell Inc.</p><p>Packages are verified against the catalog checksum before install; mismatches are discarded and re-downloaded.</p><p><b>SHA-256:</b></p><p class="mono">${sha(i.id+v)}</p>`,
+  versions:`<h4>All Versions</h4><table class="grid"><thead><tr><th>Version</th><th>Release date</th><th></th></tr></thead><tbody>${i.versions.map((x,k)=>`<tr><td>${x[0]} ${x[0]===latest?'<span class="mtag b">Latest</span>':''} ${x[0]===i.cur?'<span class="mtag g">Installed</span>':''}</td><td class="muted">${fmtD(x[1])}</td><td>${k===idx+1&&!managed()?`<button class="link" data-act="rollback" data-id="${i.id}">${ic('undo',12)} Roll back</button>`:''}</td></tr>`).join('')}</tbody></table>`}[S.dsec];
+ const L=managed();
+ return `<div class="drawer"><div class="dr-scroll">
+  <button class="btn sm" data-act="closeDrawer">${ic('back',14)} Back</button>
+  <h2>${i.name} ${v}</h2>
+  <div class="dmeta"><div><span>Package ID: </span>${i.pkg}</div><div><span>Importance: </span>${IMP[i.imp]}</div><div><span>Version: </span>${v}</div>
+   <div><span>Release date: </span>${fmtD(i.date)}</div><div><span>Category: </span>${CATL[i.cat]}</div><div><span>Size: </span>${fmtMB(i.size)}</div>
+   <div><span>Installed: </span>${i.cur}</div><div><span>Impact: </span>${impact(i.impact)}</div><div><span>Vendor: </span>${i.vendor}</div></div>
+  <p class="desc">${i.desc}</p>
+  <div class="dr-body"><nav class="dr-nav">${secs.map(([k,l])=>`<button class="${S.dsec===k?'active':''}" data-act="dsec" data-sec="${k}">${l}</button>`).join('')}</nav><div class="dr-sec">${sec}</div></div>
+ </div>
+ <div class="dr-foot">${i.next?(L?`<span class="note">${ic('lock',14)} ${i.wms?'Assigned by WMS · installs '+windowLabel():'Not assigned by WMS policy'}</span>`
+  :`<span class="note">${i.downloaded?ic('check',14)+' Downloaded':''}</span>${i.skipped?`<button class="btn" data-act="unskip" data-id="${i.id}">Unskip</button>`:`<button class="btn ghost" data-act="skip" data-id="${i.id}">${ic('skip',14)} Skip this version</button>`}${S.wf?`<span class="note" style="color:#f6c96d;flex:none">${ic('lock',14)} Disable Write Filter to install</span>`:''}<button class="btn" data-act="downloadOne" data-id="${i.id}" ${i.downloaded||S.wf?'disabled':''}>${ic('download',14)} Download</button><button class="btn primary" data-act="installOne" data-id="${i.id}" ${S.wf?'disabled':''}>Install ${i.next}</button>`)
+  :`<span class="note">${ic('checkc',14)} ${i.name} is up to date.</span>`}</div></div>`}
+
+function vNotif(){const unread=S.notifs.some(n=>n.unread);
+ return `<div class="npanel"><div class="nh">Notifications<button class="tbtn" data-act="notifs">${ic('close')}</button></div>
+ <div class="na"><button class="link" data-act="nRead" ${unread?'':'disabled'}>Mark all as read</button><button class="link del" data-act="nDel">Delete all</button></div>
+ <div class="nlist">${S.notifs.length?S.notifs.map(n=>`<div class="nitem ${n.unread?'unread':''}"><div class="t">${ic(n.act?'upd':'checkc')} ${n.t}</div><p>${n.b}</p><small>${n.time}</small>
+  <button class="x" data-act="nX" data-id="${n.id}">${ic('close',14)}</button>${n.act?`<div class="va"><button class="btn sm primary" data-act="nGo" data-id="${n.id}">View Details</button></div>`:''}</div>`).join('')
+  :`<div class="empty" style="margin:20px;border:none">${ic('bell',30)}<b>No notifications</b></div>`}</div></div>`}
+
+/* ================= Modals ================= */
+function dlg(title,sub,body,foot,wide){return `<div class="dialog ${wide?'wide':''}"><div class="dlg-b"><h2>${title}</h2>${sub?`<div class="dsub">${sub}</div>`:''}${body}</div><div class="dlg-f">${foot}</div></div>`}
+const ckIc={pass:'checkc',warn:'warn',fail:'xc'};
+function checksHTML(m){return `<div class="checks">${m.checks.map((c,k)=>k<m.shown?`<div class="ck ${c.s}"><span class="ci">${ic(ckIc[c.s],18)}</span><div><b>${c.t}</b><small>${c.d}</small>${c.ack?`<label class="ack"><input type="checkbox" data-act="ack" data-k="${c.ack}" ${m.acks[c.ack]?'checked':''}> ${c.ackT}</label>`:''}</div></div>`
+  :`<div class="ck pend"><span class="ci">${k===m.shown?spin():ic('clock',18)}</span><div><b>${c.t}</b><small>${k===m.shown?'Checking…':'Waiting'}</small></div></div>`).join('')}</div>`}
+const checksOk=m=>m.shown>=m.checks.length&&!m.checks.some(c=>c.s==='fail')&&m.checks.every(c=>!c.ack||m.acks[c.ack]);
+
+function vModal(){const m=S.modal;if(!m)return '';
+ if(m.type==='preflight'){const size=m.jobs.reduce((a,j)=>a+j.item.size,0),restart=m.jobs.some(j=>j.item.impact==='restart');
+  const list=`<div class="jlist">${m.jobs.map(j=>`<div class="jr"><div class="top">${ic(j.kind==='rollback'?'undo':'pkg')}<span class="n">${j.item.name}</span><span class="s">${j.from} → ${j.to}</span>${impact(j.item.impact)}<span class="s">${j.item.downloaded?'Downloaded':fmtMB(j.item.size)}</span></div></div>`).join('')}</div>`;
+  const opts=!S.wf&&restart?`<div class="sec-t">Options</div><label class="opt"><input type="checkbox" data-act="mopt" data-k="autoRestart" ${m.autoRestart?'checked':''}><div>Restart automatically when installation completes<small>Otherwise you'll be prompted to restart.</small></div></label>`:'';
+  const go='Install now';
+  return dlg(m.title,`${m.jobs.length} item${m.jobs.length>1?'s':''} · ${fmtMB(size)} · ~${estMin(m.jobs.map(j=>j.item))} min${m.by.startsWith('WMS')?' · '+m.by:''}`,
+   list+`<div class="sec-t">Pre-flight checks</div>`+checksHTML(m)+opts,
+   `<span class="grow"></span><button class="btn" data-act="mClose">Cancel</button><button class="btn primary" data-act="pfGo" ${checksOk(m)?'':'disabled'}>${go}</button>`,true)}
+ if(m.type==='result'){const ok=m.res.filter(r=>r.st==='ok'),bad=m.res.filter(r=>r.st==='fail'),can=m.res.filter(r=>r.st==='cancelled'),rp=restartPending();
+  const t=bad.length?(ok.length?'Some updates failed':'Update failed'):can.length&&!ok.length?'Installation cancelled':m.dl?'Download complete':'Updates installed';
+  const rows=m.res.map(r=>`<div class="res">${r.st==='ok'?`<span class="ok">${ic('checkc',18)}</span>`:r.st==='fail'?`<span class="bad">${ic('xc',18)}</span>`:ic('skip',18)}<div><b style="font-weight:500">${r.j.item.name} ${r.j.to}</b><small>${r.st==='ok'?(m.dl?'Downloaded and verified · ready to install':r.j.kind==='rollback'?'Rolled back':r.j.item.restartPending?'Installed · restart required to finish':'Installed successfully'):r.st==='fail'?r.err:'Cancelled — nothing was changed'}</small></div></div>`).join('');
+  const extra=(m.servicing?`<div class="banner ok" style="margin-top:12px">${ic('wf',18)}<div>UWF Servicing Mode completed. Write Filter is <b>ON</b> again and changes were committed.</div></div>`:'')
+   +(rp.length&&!m.dl?`<div class="banner warn" style="margin-top:12px">${ic('power',18)}<div><b>Restart required</b> to finish installing ${rp.map(i=>i.name).join(', ')}.${m.countdown!=null?` Restarting automatically in <b>${m.countdown}s</b>…`:''}</div></div>`:'')
+   +(S.wms!=='none'&&!m.dl?`<p style="font-size:12px;color:#9fb0c5;margin-top:10px">${ic('check',12)} Results reported to WMS.</p>`:'');
+  const foot=(bad.length?`<button class="btn" data-act="retry">${ic('refresh',14)} Retry failed</button>`:'')
+   +(rp.length&&!m.dl?`<button class="btn" data-act="mClose">Restart later</button><button class="btn primary" data-act="restart">${ic('power',14)} Restart now</button>`:`<button class="btn primary" data-act="mClose">Done</button>`);
+  return dlg(t,m.servicing?'Applied in UWF Servicing Mode':'',rows+extra,foot)}
+ if(m.type==='schedule'){const ids=m.ids;
+  return dlg('Schedule installation',`${ids.length} update${ids.length>1?'s':''} · ${fmtMB(ids.map(item).reduce((a,i)=>a+i.size,0))}`,
+   `<label class="opt"><input type="radio" name="when" data-act="mopt" data-k="when" data-v="window" ${m.when==='window'?'checked':''}><div>Next maintenance window<small>${windowLabel()} (from Preferences)</small></div></label>
+    <label class="opt"><input type="radio" name="when" data-act="mopt" data-k="when" data-v="custom" ${m.when==='custom'?'checked':''}><div>Choose date &amp; time<small><input class="inp" type="datetime-local" data-mf="custom" value="${m.custom}" style="margin-top:6px" ${m.when==='custom'?'':'disabled'}></small></div></label>
+    <div class="sec-t">Options</div>
+    <label class="opt"><input type="checkbox" data-act="mopt" data-k="prefetch" ${m.prefetch?'checked':''}><div>Download now<small>Packages are downloaded and verified in the background so the window is used only for installing.</small></div></label>
+    ${S.wf?`<div class="banner warn">${ic('wf',18)}<div>Write Filter is ON — the scheduled install will run in UWF Servicing Mode.</div></div>`:''}`,
+   `<button class="btn" data-act="mClose">Cancel</button><button class="btn primary" data-act="schedGo">${ic('cal',14)} Schedule</button>`)}
+ if(m.type==='wf'){return dlg(`Turn Write Filter ${S.wf?'OFF':'ON'}?`,'A system restart is required for changes to take effect.',
+   `<p style="font-size:13px;color:#cfd9e6;line-height:1.5">${S.wf?'With the Write Filter OFF, changes persist across restarts and software updates can be installed. Remember to turn it back ON after updating.':'With the Write Filter ON, changes are discarded at restart and software updates cannot be installed.'}</p>`,
+   `<button class="btn" data-act="mClose">Cancel</button><button class="btn primary" data-act="wfGo">${ic('power',14)} Restart now</button>`)}
+ if(m.type==='reimage')return vReimage(m);
+ return ''}
+
+function vReimage(m){const img=S.os.images.find(x=>x.id===m.img),steps=['Select image','Keep settings','Pre-flight','Confirm'];
+ const stepper=`<div class="stepper">${steps.map((s,k)=>`<div class="${k+1===m.step?'on':k+1<m.step?'done':''}">${k+1}. ${s}</div>`).join('')}</div>`;
+ let body='',next='';
+ if(m.step===1){body=S.os.images.filter(x=>x.id!==S.os.cur.id).map(x=>`<label class="opt"><input type="radio" name="img" data-act="mopt" data-k="img" data-v="${x.id}" ${m.img===x.id?'checked':''}><div><b style="font-weight:500">${x.label}</b> ${x.latest?'<span class="mtag b">Latest · Recommended</span>':''}${x.id<S.os.cur.id?'<span class="mtag a">Older than installed</span>':''}<small>Build ${x.build} · ${fmtD(x.date)} · ${fmtMB(x.size)}</small></div></label>`).join('')
+   +`<p style="font-size:12px;color:#9fb0c5;margin-top:8px">Currently installed: ${S.os.cur.label} (build ${S.os.cur.build}). Images are matched to service tag ${DEVICE.tag}.</p>`;next='Next'}
+ if(m.step===2){const o=(k,t,s,dis)=>`<label class="opt ${dis?'dis':''}"><input type="checkbox" data-act="mopt" data-k="${k}" ${m[k]&&!dis?'checked':''} ${dis?'disabled':''}><div>${t}<small>${s}</small></div></label>`;
+  body=o('keepWms','Keep WMS registration','Device re-registers to the same WMS server and group after imaging.',S.wms==='none')
+   +o('keepDacc','Keep DACC configuration','Application Launch Manager entries, Write Filter exclusions, auto-login and shortcuts.')
+   +o('keepNet','Keep network & Wi‑Fi profiles','Static IP, proxy and saved wireless networks.')
+   +`<div class="warnbox">${ic('warn',18)}<div><b>Everything else on the system drive will be erased</b> — local user profiles, files and any applications not included in ${img.label}.</div></div>`;next='Next'}
+ if(m.step===3){body=checksHTML(m);next='Next'}
+ if(m.step===4){body=`<div class="warnbox">${ic('warn',18)}<div>The device will download ${img.label} (${fmtMB(img.size)}), restart into <b>Dell OS Recovery</b> and reimage. This takes about 25 minutes and cannot be cancelled once imaging starts.</div></div>
+  <p style="font-size:13px;margin:12px 0 6px">Type the service tag <b>${DEVICE.tag}</b> to confirm:</p><input class="inp" style="width:100%" data-mf="tag" value="${esc(m.tag)}" placeholder="Service tag" autocomplete="off">`;}
+ const canNext=m.step===3?checksOk(m):m.step===1?!!m.img:true;
+ return dlg('Reimage device',`${img?img.label:''}`,stepper+body,
+  `${m.step>1?'<button class="btn ghost" data-act="riBack">Back</button>':''}<span class="grow"></span><button class="btn" data-act="mClose">Cancel</button>`+
+  (m.step<4?`<button class="btn primary" data-act="riNext" ${canNext?'':'disabled'}>${next}</button>`:`<button class="btn danger" id="riGo" data-act="riGo" ${m.tag.trim().toUpperCase()===DEVICE.tag?'':'disabled'}>Erase &amp; reimage</button>`),true)}
+
+/* ================= Pre-flight ================= */
+function preflight(list,{reimage}={}){
+ const size=list.filter(i=>!i.downloaded).reduce((a,i)=>a+i.size,0),c=[];
+ const needRestart=reimage||S.wf||list.some(i=>i.impact==='restart');
+ if(S.net==='offline'){c.push(size?{s:'fail',t:'Network',d:'No connection to the update source. Connect to a network and try again.'}:{s:'pass',t:'Network',d:'Offline — all packages are already downloaded.'})}
+ else if(S.net==='metered'&&S.prefs.metered!=='allow'&&size)c.push({s:'warn',t:'Network · metered connection',d:`${fmtMB(size)} will be downloaded over a metered connection.`,ack:'metered',ackT:'Allow download over metered connection'});
+ else c.push({s:'pass',t:'Network',d:`${srcName()} reachable (38 ms)`});
+ const need=reimage?size:size*1.6;
+ c.push({s:'pass',t:'Storage',d:reimage?`${fmtMB(size)} will be staged to the recovery partition · 9.5 GB available`:`${fmtMB(need)} needed (download + extraction) · ${DEVICE.freeGB} GB free`});
+ if(S.ac)c.push({s:'pass',t:'Power',d:'AC power connected'});
+ else c.push(needRestart?{s:'fail',t:'Power',d:`Battery at 35%. Connect AC power — ${reimage?'reimaging':'restart-required updates'} need AC power or at least 50% battery.`}:{s:'warn',t:'Power',d:'On battery (35%). Live updates can proceed; keep the device powered on.'});
+ if(S.wf)c.push({s:'fail',t:'Write Filter is ON',d:'Disable the Write Filter (restart required) before applying updates.'});
+ else c.push({s:'pass',t:'Write Filter',d:'OFF — updates are applied directly.'});
+ const run=list.filter(i=>i.proc);
+ if(reimage)c.push({s:'warn',t:'Running apps & sessions',d:'All apps and VDI sessions will be closed and local data erased.',ack:'apps',ackT:'I understand local data will be erased'});
+ else if(run.length)c.push({s:'warn',t:'Running apps',d:`${run.map(i=>i.proc).join(', ')} will be closed during installation.`,ack:'apps',ackT:'Users have saved their work — close these apps'});
+ else c.push({s:'pass',t:'Running apps',d:'No conflicting apps running.'});
+ c.push({s:'pass',t:'Package integrity',d:'Signed by Dell Inc.; SHA-256 checksum verified before install.'});
+ return c}
+
+function animateChecks(){const m=S.modal;if(!m||!m.checks)return;m.shown=0;
+ const t=setInterval(()=>{if(S.modal!==m){clearInterval(t);return}m.shown++;renderModal();if(m.shown>=m.checks.length)clearInterval(t)},380)}
+
+function openPreflight(jobs,title,by){
+ S.modal={type:'preflight',jobs,title,by,checks:preflight(jobs.map(j=>j.item)),shown:0,acks:{},autoRestart:S.prefs.restart==='auto'};S.drawer=null;render();animateChecks()}
+const mkJobs=ids=>ids.map(item).filter(i=>i&&i.next).map(i=>({item:i,from:i.cur,to:i.next,kind:'update'}));
+
+/* ================= Install engine ================= */
+const jobRows=jobs=>`<div class="jlist">${jobs.map((j,k)=>`<div class="jr" id="jr${k}" data-st="wait"><div class="top"><span class="jr-ic">${ic('clock',16)}</span><span class="n">${j.item.name} ${j.to}</span><span class="s">${fmtMB(j.item.size)}</span></div><div class="jr-t">Queued</div><div class="bar"><i></i></div></div>`).join('')}</div>`;
+function setRow(k,st,p,t){const e=document.getElementById('jr'+k);if(!e)return;e.dataset.st=st;e.querySelector('.bar i').style.width=p+'%';e.querySelector('.jr-t').textContent=t;
+ e.querySelector('.jr-ic').innerHTML=st==='dl'?ic('download',16):st==='ok'?`<span style="color:#6fcf5a">${ic('checkc',16)}</span>`:st==='fail'?`<span style="color:#ef5350">${ic('xc',16)}</span>`:st==='cancel'?ic('skip',16):spin()}
+function setOverall(p,t){const b=document.getElementById('ov-bar'),x=document.getElementById('ov-t');if(b)b.style.width=p+'%';if(x&&t)x.textContent=t}
+function setCancel(on){const b=document.getElementById('pg-cancel');if(b)b.disabled=!on}
+
+async function runJobs(jobs,{servicing=false,dlOnly=false}={}){
+ S.cancel=false;const res=[],n=jobs.length;let failIdx=S.failNext&&!dlOnly?Math.min(1,n-1):-1;
+ for(let k=0;k<n;k++){const j=jobs[k],it=j.item;
+  if(S.cancel){setRow(k,'cancel',0,'Cancelled');res.push({j,st:'cancelled'});continue}
+  if(!it.downloaded||j.kind==='rollback'){setCancel(!servicing);const steps=25,dur=Math.min(2600,600+it.size*4);
+   for(let p=0;p<=steps;p++){if(S.cancel)break;const pc=p/steps*100;setRow(k,'dl',pc,`Downloading… ${fmtMB(it.size*pc/100)} of ${fmtMB(it.size)}`);setOverall(((k+pc/100*(dlOnly?1:.55))/n)*100,`Downloading ${it.name} (${k+1} of ${n})`);await sleep(dur/steps)}
+   if(S.cancel){setRow(k,'cancel',0,'Cancelled');res.push({j,st:'cancelled'});continue}}
+  setCancel(false);setRow(k,'verify',100,'Verifying SHA-256 checksum and signature…');await sleep(550);
+  if(dlOnly){setRow(k,'ok',100,'Downloaded and verified');res.push({j,st:'ok'});continue}
+  let failed=false;
+  for(let p=0;p<=100;p+=10){setRow(k,'inst',p,j.kind==='rollback'?`Rolling back to ${j.to}… ${p}%`:`Installing silently… ${p}%`);setOverall(((k+.55+p/100*.45)/n)*100,`Installing ${it.name} (${k+1} of ${n})`);await sleep(130);
+   if(k===failIdx&&p>=60){failed=true;break}}
+  if(failed){const err=`Installer exited with code 1603. Changes were rolled back — ${j.from} remains installed.`;setRow(k,'fail',100,err);res.push({j,st:'fail',err});S.failNext=false;syncProto()}
+  else{setRow(k,'ok',100,it.impact==='restart'&&!servicing?'Installed — restart required':'Installed');res.push({j,st:'ok'})}}
+ setOverall(100,'Finished');return res}
+
+function finishJobs(res,by,{servicing=false,dlOnly=false}={}){
+ res.forEach(r=>{const it=r.j.item;
+  if(dlOnly){if(r.st==='ok')it.downloaded=true;return}
+  if(r.st==='ok'){S.history.unshift({d:new Date(),name:it.name,from:r.j.from,to:r.j.to,r:r.j.kind==='rollback'?'rb':'ok',by,rep:S.wms!=='none'});
+   it.cur=r.j.to;it.downloaded=false;
+   if(r.j.kind==='rollback'){it.next=it.versions[0][0];it.skipped=true}else it.next=null;
+   if(it.impact==='restart'&&!servicing)it.restartPending=true;S.sel.delete(it.id);
+   if(S.scheduled){S.scheduled.ids=S.scheduled.ids.filter(x=>x!==it.id);if(!S.scheduled.ids.length)S.scheduled=null}}
+  else if(r.st==='fail')S.history.unshift({d:new Date(),name:it.name,from:r.j.from,to:r.j.to,r:'fail',err:'1603 – fatal error during installation, rolled back',by,rep:S.wms!=='none'})});
+ if(dlOnly)return;
+ const ok=res.filter(r=>r.st==='ok').length,bad=res.filter(r=>r.st==='fail').length;
+ if(ok||bad)notify(bad?`${ok} installed, ${bad} failed`:`${ok} update${ok>1?'s':''} installed`,res.map(r=>`${r.j.item.name} ${r.j.to}${r.st==='fail'?' (failed)':''}`).join(', '),'updates')}
+
+async function progressRun(jobs,by,{dlOnly=false,autoRestart=false}={}){
+ S.modal={type:'progress',locked:true};S.drawer=null;render();
+ $('#modal').classList.add('show');$('#modal').innerHTML=dlg(dlOnly?'Downloading updates':`Installing ${jobs.length} update${jobs.length>1?'s':''}`,'Packages are installed silently. You can keep working; apps being updated will be closed.',
+  `<div style="margin-bottom:14px"><div id="ov-t" style="font-size:13px;margin-bottom:8px">Preparing…</div><div class="bar big"><i id="ov-bar"></i></div></div>`+jobRows(jobs),
+  `<span class="grow">Cancel is available while downloading.</span><button class="btn" id="pg-cancel" data-act="pgCancel">Cancel</button>`,true);
+ const res=await runJobs(jobs,{dlOnly});await sleep(400);
+ finishJobs(res,by,{dlOnly});
+ S.modal={type:'result',res,dl:dlOnly};
+ if(autoRestart&&restartPending().length&&!dlOnly){S.modal.countdown=5;const m=S.modal;const t=setInterval(()=>{if(S.modal!==m){clearInterval(t);return}m.countdown--;if(m.countdown<=0){clearInterval(t);restartDevice()}else renderModal()},1000)}
+ render()}
+
+/* ---- Fullscreen sequences ---- */
+const ov=$('#overlay');
+async function boot(text,ms,logo=true){ov.classList.add('show');ov.innerHTML=`<div class="boot">${logo?dellLogo(true):''}<span class="spinner"></span><div class="boot-t">${text}</div></div>`;await sleep(ms)}
+function ovHide(){ov.classList.remove('show');ov.innerHTML=''}
+const setStep=(k,st)=>{const e=document.getElementById('sv'+k);if(!e)return;e.dataset.st=st;e.querySelector('.sic').innerHTML=st==='done'?ic('check',16,2.2):st==='run'?spin():ic('clock',14)};
+
+async function servicing(jobs,by){
+ S.modal=null;S.drawer=null;S.notifOpen=false;render();
+ await boot('Restarting into UWF Servicing Mode…',1800);
+ const steps=['Restarted into servicing mode','Write Filter temporarily disabled · overlay cleared','Installing updates','Committing changes and re-enabling Write Filter','Restarting device'];
+ ov.innerHTML=`<div class="svc"><div class="svc-box">${dellLogo(false)}<h2>Servicing in progress</h2><div class="lead">Do not turn off your device. It is locked until servicing completes and will restart automatically.</div>
+  <ul class="svc-steps">${steps.map((s,k)=>`<li id="sv${k}" data-st="wait"><span class="sic">${ic('clock',14)}</span>${s}</li>`).join('')}</ul>
+  <div style="margin-bottom:12px"><div id="ov-t" style="font-size:13px;margin-bottom:8px;color:#cfd9e6">Preparing…</div><div class="bar big"><i id="ov-bar"></i></div></div>${jobRows(jobs)}</div></div>`;
+ setStep(0,'run');await sleep(700);setStep(0,'done');setStep(1,'run');await sleep(900);setStep(1,'done');setStep(2,'run');
+ const res=await runJobs(jobs,{servicing:true});
+ setStep(2,'done');setStep(3,'run');await sleep(1400);setStep(3,'done');setStep(4,'run');await sleep(900);
+ await boot('Restarting…',1400,false);await boot('',1300);
+ ovHide();finishJobs(res,by,{servicing:true});
+ S.win='open';S.view='updates';S.tab='available';S.modal={type:'result',res,servicing:true};render();
+ const bad=res.filter(r=>r.st==='fail').length;
+ osToast(bad?'Some updates failed':'Updates installed',bad?`${bad} update failed during servicing. Open DACC to retry.`:`${res.length} update${res.length>1?'s':''} installed in UWF Servicing Mode. Write Filter is ON.`)}
+
+async function restartDevice(){
+ S.modal=null;S.drawer=null;S.notifOpen=false;render();
+ await boot('Restarting…',1500,false);
+ const rp=restartPending();rp.forEach(i=>i.restartPending=false);
+ const wfChanged=S.wfPending!==null,back=S.view;
+ if(wfChanged){S.wf=S.wfPending;S.wfPending=null}
+ await boot('',1400);ovHide();S.win='closed';render();syncProto();
+ if(rp.length)osToast('Updates finished installing',`${rp.map(i=>i.name).join(', ')} ${rp.length>1?'are':'is'} up to date.${S.wf?'':' Remember to turn the Write Filter back ON.'}`);
+ else if(wfChanged&&!S.wf&&back==='updates'){openDACC('updates');toast('Write Filter is OFF. You can now install updates.')}
+ else osToast('Dell Application Control Center',`Write Filter is ${S.wf?'ON':'OFF'}.`)}
+
+async function reimageRun(){
+ const img=S.os.images.find(x=>x.id===S.modal.img),m=S.modal;const job={item:{name:img.label,size:img.size,downloaded:false,impact:'reimage'},to:'',from:S.os.cur.label,kind:'image'};
+ S.modal={type:'progress',locked:true};render();
+ $('#modal').classList.add('show');$('#modal').innerHTML=dlg('Preparing reimage',img.label,`<div style="margin-bottom:14px"><div id="ov-t" style="font-size:13px;margin-bottom:8px">Preparing…</div><div class="bar big"><i id="ov-bar"></i></div></div>`+jobRows([job]),`<button class="btn" id="pg-cancel" data-act="pgCancel">Cancel</button>`,true);
+ S.cancel=false;
+ for(let p=0;p<=40;p++){if(S.cancel)break;setRow(0,'dl',p*2.5,`Downloading… ${fmtMB(img.size*p/40)} of ${fmtMB(img.size)}`);setOverall(p*2.5*.8,'Downloading image');await sleep(80)}
+ if(S.cancel){S.modal=null;render();toast('Reimage cancelled. Nothing was changed.','info');return}
+ setCancel(false);setRow(0,'verify',100,'Verifying SHA-256…');setOverall(85,'Verifying');await sleep(800);
+ setRow(0,'verify',100,'Staging image to recovery partition…');setOverall(95,'Staging');await sleep(1000);
+ S.modal=null;render();
+ await boot('Restarting into Dell OS Recovery…',1800);
+ const phases=[[0,'Erasing system partition'],[12,'Applying '+img.label],[70,'Installing drivers for '+DEVICE.model],[85,'Restoring retained settings'],[95,'Finalizing']];
+ ov.innerHTML=`<div class="svc"><div class="svc-box">${dellLogo(false)}<h2>Dell OS Recovery</h2><div class="lead">Reimaging this device. Do not turn off power.</div>
+  <div id="ov-t" style="font-size:14px;margin-bottom:10px">Starting…</div><div class="bar big"><i id="ov-bar"></i></div><div id="ri-pct" style="font-size:12px;color:#9fb0c5;margin-top:8px">0%</div>
+  <ul class="svc-steps" style="margin-top:18px">${[m.keepWms&&S.wms!=='none'?'WMS registration':'',m.keepDacc?'DACC configuration':'',m.keepNet?'Network & Wi‑Fi profiles':''].filter(Boolean).map(x=>`<li data-st="wait"><span class="sic">${ic('shield',14)}</span>Retaining: ${x}</li>`).join('')}</ul></div></div>`;
+ for(let p=0;p<=100;p++){const ph=[...phases].reverse().find(x=>p>=x[0]);setOverall(p,ph[1]);const e=document.getElementById('ri-pct');if(e)e.textContent=p+'%';await sleep(65)}
+ await boot('Getting things ready…',1800);ovHide();
+ const prev=S.os.cur.label;S.os.cur={id:img.id,label:img.label,build:img.build,date:fmtD(new Date().toISOString().slice(0,10)),by:'Local · DACC'};
+ Object.entries(img.includes).forEach(([id,v])=>{const it=item(id);if(it&&it.versions.findIndex(x=>x[0]===v)<=it.versions.findIndex(x=>x[0]===it.cur)){it.cur=v;if(it.next===v)it.next=null}});
+ S.history.unshift({d:new Date(),name:'OS image',from:prev,to:img.label,r:'ok',by:'Local · Admin',rep:S.wms!=='none'&&m.keepWms});
+ if(!m.keepWms)S.wms='none';S.wf=true;S.sel.clear();notify('Device reimaged',`${img.label} applied. Write Filter is ON.`,'updates');
+ S.win='closed';render();syncProto();
+ osToast('Reimage complete',`${img.label} is installed. ${m.keepWms&&S.wms!=='none'?'Device re-registered to WMS. ':''}Write Filter is ON.`)}
+
+/* ================= Render ================= */
+function render(){
+ const w=$('#win'),vis=S.win==='open'||S.win==='splash';
+ w.classList.toggle('hidden',!vis);w.classList.toggle('max',S.max);
+ $('#tb-dacc').classList.toggle('on',S.win!=='closed');$('#tb-dacc').classList.toggle('active',vis);
+ const sc=$('#app .scroll'),top=sc?sc.scrollTop:0,key=S.view+S.tab+S.cat;
+ $('#app').innerHTML=S.win==='splash'?vSplash():S.view==='home'?vHome():vUpdates();
+ const sc2=$('#app .scroll');if(sc2&&render.key===key)sc2.scrollTop=top;render.key=key;
+ if(S.focus&&S.win==='open'){const r=document.getElementById('row-'+S.focus);if(r&&sc2){sc2.scrollTop+=r.getBoundingClientRect().top-sc2.getBoundingClientRect().top-sc2.clientHeight/2+r.offsetHeight/2;r.classList.add('flash')}S.focus=null}
+ $('#drawer').innerHTML=S.win==='open'&&S.drawer?vDrawer():'';
+ $('#npanel').innerHTML=S.win==='open'&&S.notifOpen?vNotif():'';
+ if(!(S.modal&&S.modal.locked))renderModal();
+ const n=totalAvail();$('#tray-upd').innerHTML=`${ic('upd',18)}${n?`<span class="badge">${n}</span>`:''}`;
+ $('#tray-upd').title=n?`Dell: ${n} updates available`:'Dell: device up to date';
+ $('#tray-sys').innerHTML=`${ic(S.net==='offline'?'skip':'net',16)}${ic('vol',16)}${ic(S.ac?'plug':'batt',16)}`;
+}
+function renderModal(){const md=$('#modal');if(S.win!=='open'||!S.modal){md.classList.remove('show');md.innerHTML='';return}md.classList.add('show');md.innerHTML=vModal()}
+function syncProto(){const q=k=>document.querySelector(`[data-proto="${k}"]`);q('wf').value=S.wf?'1':'0';q('wms').value=S.wms;q('ac').value=S.ac?'1':'0';q('net').value=S.net;q('fail').checked=S.failNext}
+
+function toast(msg,kind='ok'){const t=document.createElement('div');t.className='atoast '+(kind==='ok'?'':kind);
+ t.innerHTML=`${ic(kind==='err'?'xc':kind==='info'?'info':'checkc',18)}<span>${msg}</span><button class="x">${ic('close',12)}</button>`;
+ t.querySelector('.x').onclick=()=>t.remove();$('#atoasts').appendChild(t);setTimeout(()=>t.remove(),4500)}
+function showUpdate(id){S.view='updates';S.tab='available';S.cat='all';S.impFilter='all';S.q='';const q=$('#q');if(q)q.value='';S.notifOpen=false;S.drawer=id;S.dsec='fixes';S.focus=id;render()}
+function osToast(title,body,btn='Open DACC',itemId){const t=document.createElement('div');t.className='ostoast';
+ t.innerHTML=`<div class="hd">${ic('gear',14)} Dell Application Control Center<button class="x">${ic('close',14)}</button></div><b>${title}</b><p>${body}</p><div class="acts"><button class="p">${btn}</button><button class="d">Dismiss</button></div>`;
+ t.querySelector('.x').onclick=t.querySelector('.d').onclick=()=>t.remove();
+ t.querySelector('.p').onclick=()=>{t.remove();openDACC('updates');if(itemId)showUpdate(itemId)};
+ $('#ostoasts').appendChild(t);setTimeout(()=>t.remove(),9000)}
+
+function openDACC(view){
+ if(view){S.view=view;if(view==='updates')S.tab='available'}
+ if(S.win==='open'||S.win==='min'){S.win='open';render();return}
+ S.win='splash';render();setTimeout(()=>{S.win='open';render()},1400)}
+
+/* ================= Actions ================= */
+const A={
+ go:d=>{S.view=d.view;S.drawer=null;S.notifOpen=false;if(d.view==='updates')S.tab='available';render()},
+ tab:d=>{S.tab=d.tab;S.drawer=null;render()},
+ cat:d=>{S.cat=d.cat;S.tab='available';S.view='updates';S.drawer=null;S.impFilter='all';render()},
+ impFilter:(d,e)=>{e.stopPropagation();S.impFilter=e.target.value;render()},
+ sel:(d,e)=>{e.stopPropagation();S.sel.has(d.id)?S.sel.delete(d.id):S.sel.add(d.id);render()},
+ selVisible:(d,e)=>{const isSec=S.cat==='security';const vis=avail().filter(i=>!i.skipped&&(isSec?i.imp==='crit':S.cat==='all'||i.cat===S.cat)).filter(i=>S.impFilter==='all'||i.imp===S.impFilter);const all=vis.every(i=>S.sel.has(i.id));vis.forEach(i=>all?S.sel.delete(i.id):S.sel.add(i.id));render()},
+ selCrit:()=>{S.sel=new Set(avail().filter(i=>i.imp==='crit').map(i=>i.id));render()},
+ selAll:()=>{S.sel=new Set(avail().map(i=>i.id));render()},
+ selNone:()=>{S.sel.clear();render()},
+ toggleSkipped:()=>{S.showSkipped=!S.showSkipped;render()},
+ details:d=>{S.drawer=d.id;S.dsec='fixes';S.notifOpen=false;render()},
+ closeDrawer:()=>{S.drawer=null;render()},
+ dsec:d=>{S.dsec=d.sec;render()},
+ skip:d=>{const i=item(d.id);i.skipped=true;S.sel.delete(i.id);S.drawer=null;render();toast(`${i.name} ${i.next} skipped. You'll be notified of the next version.`,'info')},
+ unskip:d=>{item(d.id).skipped=false;render()},
+ check:async()=>{if(S.net==='offline'){toast('Unable to reach the update source. Check the network connection.','err');return}
+  S.checking=true;render();await sleep(1800);S.checking=false;S.lastChecked=new Date();render();
+  const n=totalAvail();toast(n?`Catalog checked · ${n} update${n>1?'s':''} available`:'Your device is up to date.')},
+ install:()=>openPreflight(mkJobs([...S.sel]),'Install updates','Local · Admin'),
+ installOne:d=>openPreflight(mkJobs([d.id]),'Install update','Local · Admin'),
+ installAssigned:()=>openPreflight(mkJobs(avail().filter(i=>i.wms).map(i=>i.id)),'Install WMS-assigned updates','WMS · user-initiated'),
+ rollback:d=>{const i=item(d.id),idx=i.versions.findIndex(v=>v[0]===i.cur),prev=i.versions[idx+1];
+  openPreflight([{item:i,from:i.cur,to:prev[0],kind:'rollback'}],`Roll back ${i.name}`,'Local · Admin (rollback)')},
+ downloadOnly:()=>{if(S.net==='offline'){toast('No network connection.','err');return}const j=mkJobs([...S.sel]).filter(x=>!x.item.downloaded);if(!j.length){toast('Selected updates are already downloaded.','info');return}progressRun(j,'',{dlOnly:true})},
+ downloadOne:d=>{if(S.net==='offline'){toast('No network connection.','err');return}progressRun(mkJobs([d.id]),'',{dlOnly:true})},
+ schedule:()=>{S.modal={type:'schedule',ids:[...S.sel],when:'window',custom:'2026-11-21T02:00',prefetch:S.prefs.autoDl};render()},
+ schedGo:()=>{const m=S.modal;const when=m.when==='window'?windowLabel():fmtDT(new Date(m.custom));
+  S.scheduled={ids:m.ids,when,prefetch:m.prefetch&&S.net!=='offline'};if(S.scheduled.prefetch)m.ids.forEach(id=>item(id).downloaded=true);
+  S.sel.clear();S.modal=null;render();toast(`${m.ids.length} update${m.ids.length>1?'s':''} scheduled for ${when}.`)},
+ unschedule:()=>{S.scheduled=null;render();toast('Schedule cancelled.','info')},
+ mClose:()=>{S.modal=null;render()},
+ mopt:(d,e)=>{const m=S.modal;if(d.v!==undefined)m[d.k]=d.v;else m[d.k]=e.target.checked;renderModal()},
+ ack:(d,e)=>{S.modal.acks[d.k]=e.target.checked;renderModal()},
+ pfGo:()=>{const m=S.modal;if(S.wf){toast('Disable the Write Filter to install updates.','err');return}progressRun(m.jobs,m.by,{autoRestart:m.autoRestart})},
+ pgCancel:()=>{S.cancel=true;setCancel(false)},
+ retry:()=>{const f=S.modal.res.filter(r=>r.st==='fail').map(r=>r.j);openPreflight(f.map(j=>({...j,from:j.item.cur})),'Retry failed updates','Local · Admin (retry)')},
+ restart:()=>restartDevice(),
+ wfToggle:()=>{S.modal={type:'wf'};render()},
+ wfGo:()=>{S.wfPending=!S.wf;restartDevice()},
+ reimage:d=>{S.modal={type:'reimage',step:1,img:d.img,keepWms:S.wms!=='none',keepDacc:true,keepNet:true,tag:'',acks:{},shown:0};render()},
+ riNext:()=>{const m=S.modal;m.step++;if(m.step===3){const img=S.os.images.find(x=>x.id===m.img);m.checks=preflight([{size:img.size,impact:'restart'}],{reimage:true});m.acks={};renderModal();animateChecks()}else renderModal()},
+ riBack:()=>{S.modal.step--;renderModal()},
+ riGo:()=>reimageRun(),
+ notifs:()=>{S.notifOpen=!S.notifOpen;S.drawer=null;render()},
+ nRead:()=>{S.notifs.forEach(n=>n.unread=false);render()},
+ nDel:()=>{S.notifs=[];render()},
+ nX:d=>{S.notifs=S.notifs.filter(n=>n.id!=d.id);render()},
+ nGo:d=>{const n=S.notifs.find(x=>x.id==d.id);n.unread=false;S.notifOpen=false;if(n.item&&item(n.item)&&item(n.item).next)return showUpdate(n.item);S.view='updates';S.tab='available';S.cat=n.act==='os'?'os':'all';render()},
+ prefTg:d=>{S.prefs[d.k]=!S.prefs[d.k];render()},
+ prefSave:()=>toast(S.wms==='none'?'Preferences saved.':'Preferences saved and reported to WMS.'),
+ prefReset:()=>{S.prefs=seed().prefs;render();toast('Preferences restored to defaults.','info')},
+ exportLogs:()=>toast(`Logs exported to C:\\ProgramData\\Dell\\OTA\\Logs\\ota_${DEVICE.tag}_20261120.zip`),
+ settings:()=>{S.view='updates';S.tab='prefs';S.drawer=null;render()},
+ na:()=>toast('Not part of the OTA prototype — existing DACC module.','info'),
+ winMin:()=>{S.win='min';render()},
+ winMax:()=>{S.max=!S.max;render()},
+ winClose:()=>{if(S.modal&&S.modal.locked){toast('Installation in progress. DACC will close when it finishes.','info');return}S.win='closed';S.modal=null;S.drawer=null;S.notifOpen=false;render()},
+ tbDacc:()=>{if(S.win==='open')S.win='min';else if(S.win==='min')S.win='open';render()},
+ osOpen:()=>openDACC('updates'),
+ protoToggle:()=>{$('#proto').classList.toggle('col');$('#proto-car').innerHTML=$('#proto').classList.contains('col')?'&#9656;':'&#9662;'},
+ push:()=>{const pool=[['edge','148.0.3967.20','CVE-2026-51102 (V8 type confusion)'],['bios','1.26.0','CVE-2026-51234 (SMM privilege escalation)'],['kb5048621','26100.6621','CVE-2026-51377 (Windows Kernel elevation of privilege)'],['ctx','2609.1','CVE-2026-51410 (HDX remote code execution)'],['intelwifi','23.95.0.1','CVE-2026-51522 (Wi‑Fi driver remote code execution)'],['dda','17.0.1.0','CVE-2026-51618 (agent IPC privilege escalation)']];
+  S.pushIdx=((S.pushIdx??-1)+1)%pool.length;const [id,v,cve]=pool[S.pushIdx],e=item(id);
+  if(e.versions[0][0]!==v)e.versions.unshift([v,'2026-11-20']);
+  e.next=v;e.imp='crit';e.date='2026-11-20';e.skipped=false;e.downloaded=false;e.wms=true;
+  e.fixes=[`Urgent security update: fixes ${cve} — actively exploited`,...e.fixes.filter(f=>!f.startsWith('Urgent security'))];
+  S.lastChecked=new Date();notify('Urgent security update available',`${e.name} ${v} fixes an actively exploited vulnerability (${cve.split(' ')[0]}). Install as soon as possible.`,'updates',id);render();
+  osToast('Urgent security update available',`${e.name} ${v} fixes an actively exploited vulnerability.`,'View update',id)},
+ runWindow:async()=>{let ids,by;
+  if(managed()){ids=avail().filter(i=>i.wms).map(i=>i.id);by='WMS · Scheduled'}
+  else if(S.scheduled){ids=S.scheduled.ids;by='Local · Scheduled'}
+  else if(S.prefs.auto!=='off'){const ok={crit:['crit'],critrec:['crit','rec'],all:['crit','rec','opt']}[S.prefs.auto];ids=avail().filter(i=>ok.includes(i.imp)&&(i.policy||'notify')!=='manual').map(i=>i.id);by='Local · Automatic'}
+  if(!ids||!ids.length){toast('Nothing is scheduled for the maintenance window.','info');if(S.win!=='open')osToast('Maintenance window','Nothing scheduled to install.');return}
+  if(S.net==='offline'&&mkJobs(ids).some(j=>!j.item.downloaded)){osToast('Maintenance window skipped','No network connection. Updates will retry in the next window.');return}
+  const jobs=mkJobs(ids);
+  if(S.wf){osToast('Maintenance window skipped',`Write Filter is ON. ${jobs.length} update${jobs.length>1?'s were':' was'} not installed — disable the Write Filter to apply updates.`);return}
+  osToast('Installing updates',`Installing ${jobs.length} update${jobs.length>1?'s':''} in the maintenance window…`);
+  const res=await runJobs(jobs);finishJobs(res,by);render();
+  if(restartPending().length&&(S.prefs.restart==='auto'||managed()))return restartDevice();
+  osToast(restartPending().length?'Restart required':'Updates installed',restartPending().length?'Restart to finish installing updates.':`${res.filter(r=>r.st==='ok').length} update(s) installed.`)},
+ reset:()=>{S=seed();ovHide();$('#ostoasts').innerHTML='';syncProto();openDACC('home')}
+};
+
+document.addEventListener('click',e=>{const a=e.target.closest('[data-act]');if(!a||a.disabled)return;const f=A[a.dataset.act];if(f){if(a.tagName!=='INPUT')e.preventDefault();f(a.dataset,e)}});
+document.addEventListener('change',e=>{const t=e.target;
+ if(t.id==='impFilterSelect'){S.impFilter=t.value;render()}
+ else if(t.dataset.pref){S.prefs[t.dataset.pref]=t.value;render()}
+ else if(t.dataset.pol){item(t.dataset.pol).policy=t.value;toast(`${item(t.dataset.pol).name}: update policy set to “${t.options[t.selectedIndex].text}”.`)}
+ else if(t.dataset.mf==='custom'){S.modal.custom=t.value}
+ else if(t.dataset.proto){const k=t.dataset.proto;
+  if(k==='wf')S.wf=t.value==='1';if(k==='ac')S.ac=t.value==='1';if(k==='net')S.net=t.value;if(k==='fail')S.failNext=t.checked;
+  if(k==='wms'){S.wms=t.value;if(S.wms==='none'&&S.prefs.source==='wms')S.prefs.source='dell';S.sel.clear()}
+  render()}});
+document.addEventListener('input',e=>{const t=e.target;
+ if(t.dataset.mf==='tag'){S.modal.tag=t.value;const b=$('#riGo');if(b)b.disabled=t.value.trim().toUpperCase()!==DEVICE.tag}
+ if(t.id==='q'){S.q=t.value;if(S.view!=='updates'){S.view='updates';S.tab='available'}S.drawer=null;render()}});
+document.addEventListener('dblclick',e=>{if(e.target.closest('[data-dbl]'))openDACC('home')});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(S.modal&&!S.modal.locked)S.modal=null;else if(S.drawer)S.drawer=null;else if(S.notifOpen)S.notifOpen=false;render()}});
+
+/* Window dragging */
+(()=>{const w=$('#win'),tb=$('#titlebar');let dx,dy,drag=false;
+ tb.addEventListener('mousedown',e=>{if(S.max||e.target.closest('button,input'))return;const r=w.getBoundingClientRect();w.style.transform='none';w.style.left=r.left+'px';w.style.top=r.top+'px';dx=e.clientX-r.left;dy=e.clientY-r.top;drag=true});
+ window.addEventListener('mousemove',e=>{if(!drag)return;w.style.left=Math.max(-w.offsetWidth+120,Math.min(innerWidth-120,e.clientX-dx))+'px';w.style.top=Math.max(0,Math.min(innerHeight-90,e.clientY-dy))+'px'});
+ window.addEventListener('mouseup',()=>drag=false);
+ tb.addEventListener('dblclick',e=>{if(!e.target.closest('button,input'))A.winMax()})})();
+
+/* Static chrome */
+$('#tsearch').innerHTML=`${ic('search',14)}<input id="q" placeholder="Search updates" autocomplete="off">`;
+$('#tb-gear').innerHTML=ic('gear',15);$('#tb-min').innerHTML=ic('min',15);$('#tb-max').innerHTML=ic('max',13);$('#tb-close').innerHTML=ic('close',15);
+$('#di-dacc').innerHTML=`<span style="color:#5fb0f5">${ic('gear',26)}</span>`;$('#di-bin').innerHTML=ic('logs',26);
+$('#tb-start').innerHTML=`<svg width="20" height="20" viewBox="0 0 20 20"><rect width="9.2" height="9.2" fill="#0a7ee6"/><rect x="10.8" width="9.2" height="9.2" fill="#0a7ee6"/><rect y="10.8" width="9.2" height="9.2" fill="#0a7ee6"/><rect x="10.8" y="10.8" width="9.2" height="9.2" fill="#0a7ee6"/></svg>`;
+$('#tb-search').innerHTML=ic('search',20,2);
+$('#tb-files').innerHTML=`<svg width="22" height="22" viewBox="0 0 24 24"><path d="M2 6a2 2 0 0 1 2-2h5l2 2h9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z" fill="#f5c443"/><path d="M2 9h20v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z" fill="#ffd866"/></svg>`;
+$('#tb-edge').innerHTML=`<svg width="22" height="22" viewBox="0 0 24 24"><defs><linearGradient id="eg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#35c1f1"/><stop offset="1" stop-color="#0c59a4"/></linearGradient></defs><circle cx="12" cy="12" r="10" fill="url(#eg)"/><path d="M7 13c0-3 2.5-5 5.5-5S18 10 18 12.5H9.5c.3 2 2 3.3 4.3 3.3 1.5 0 2.9-.5 4-1.2-.9 2.8-3.4 4.4-6.2 4.4-2.6 0-4.6-2.3-4.6-6z" fill="#7be08e" opacity=".9"/></svg>`;
+$('#tb-dacc').innerHTML=`<span style="color:#0a6fc2">${ic('gear',20)}</span>`;
+const tick=()=>{const d=new Date();$('#clock').innerHTML=`${fmtT(d)}<br>${d.getMonth()+1}/${d.getDate()}/${d.getFullYear()}`};tick();setInterval(tick,15000);
+
+/* Boot */
+syncProto();render();
+setTimeout(()=>openDACC('home'),400);
+setTimeout(()=>osToast('9 updates available','3 critical security updates are ready for this device (Microsoft Edge, Citrix Workspace, Omnissa Horizon Client).','View updates'),2600);
+</script>
+<script>
+/* ================= Reviewer feedback module ================= */
+(()=>{
+const FB_VER='2026.11.23';
+const LS='dacc-ota-feedback-v1';
+const TYPES=['UI / Visual','UX / Flow','Concept / Logic','Bug','Question'];
+const PRI=['High','Medium','Low'];
+const STAT=[['open','Open'],['progress','In progress'],['addressed','Addressed'],['wontdo',"Won't do"]];
+const STL=Object.fromEntries(STAT);
+const TABL={available:'Available',installed:'Installed',history:'History',prefs:'Preferences'};
+const WMSL={none:'Not registered',registered:'Registered · local',managed:'WMS-managed'};
+const root=document.getElementById('fb-root');
+root.innerHTML='<div id="fb-pins"></div><div id="fb-ui"></div><div id="fb-tmp"></div>';
+const pinLayer=document.getElementById('fb-pins'),uiEl=document.getElementById('fb-ui'),tmp=document.getElementById('fb-tmp');
+const e=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid=()=>'fb_'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const nowISO=()=>new Date().toISOString();
+const stamp=()=>new Date().toISOString().slice(0,10);
+const fmt=iso=>{try{return new Date(iso).toLocaleString([],{day:'2-digit',month:'short',year:'numeric',hour:'numeric',minute:'2-digit'})}catch(_){return iso}};
+const done=it=>it.status==='addressed'||it.status==='wontdo';
+const chatSvg='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/></svg>';
+
+let F={reviewer:'',role:'',items:[],deleted:[],lastSent:''};
+const ui={open:false,menu:false,dlg:null,pins:true,picking:false,after:null,wasOpen:false,pulse:null,pulseUntil:0,embCount:0,embFrom:'',tour:null,
+ flt:{rev:'all',type:'all',pri:'all',st:'all',screen:false}};
+
+/* ---------- storage ---------- */
+function persist(){try{localStorage.setItem(LS,JSON.stringify(F))}catch(_){toastFb('Auto-save is unavailable in this browser. Use “Save & send back” before closing.')}}
+function merge(list){let n=0;
+ (list||[]).forEach(it=>{if(!it||!it.id||F.deleted.includes(it.id))return;const cur=F.items.find(x=>x.id===it.id);
+  if(!cur){F.items.push(it);n++}else if((it.updated||'')>(cur.updated||'')){Object.assign(cur,it);n++}});
+ F.items.sort((a,b)=>(a.created||'').localeCompare(b.created||''));persist();return n}
+function load(){
+ try{const s=JSON.parse(localStorage.getItem(LS)||'null');if(s)F=Object.assign(F,s)}catch(_){}
+ let emb={};try{emb=JSON.parse(document.getElementById('fb-embedded').textContent||'{}')}catch(_){}
+ const list=emb.items||[];ui.embCount=list.length;ui.embFrom=[...new Set(list.map(i=>i.reviewer))].join(', ');merge(list)}
+const unsent=()=>F.items.filter(it=>it.reviewer===F.reviewer&&(it.updated||'')>(F.lastSent||'')).length;
+
+/* ---------- context ---------- */
+function curCtx(){const d=S.drawer&&item(S.drawer);
+ return {view:S.view,tab:S.tab,cat:S.cat,impFilter:S.impFilter,drawer:S.drawer||null,drawerName:d?d.name:null,notif:!!S.notifOpen,
+  modal:S.modal?S.modal.type:null,win:S.win,wf:S.wf,wms:S.wms,net:S.net,ac:S.ac,vw:innerWidth,vh:innerHeight,ver:FB_VER}}
+function screenOf(c){
+ if(!c||c.win!=='open')return 'Desktop';
+ let s=c.view==='home'?'DACC Home':`Software Updates › ${TABL[c.tab]||c.tab}`;
+ if(c.view==='updates'&&c.tab==='available'){const k=CATS.find(x=>x.id===c.cat);s+=` › ${k?k.l:c.cat}`}
+ if(c.drawer)s+=` › Details: ${c.drawerName||c.drawer}`;
+ if(c.notif)s+=' › Notifications';
+ if(c.modal)s+=` › Dialog (${c.modal})`;
+ return s}
+const stateOf=c=>c?`Write Filter ${c.wf?'ON':'OFF'} · WMS ${WMSL[c.wms]||c.wms} · Network ${c.net} · ${c.ac?'AC power':'Battery'}`:'';
+function zoneOf(el){if(el.closest('#modal'))return 'modal';if(el.closest('#drawer'))return 'drawer';if(el.closest('#npanel'))return 'npanel';
+ if(el.closest('#titlebar'))return 'titlebar';if(el.closest('#app'))return 'app';return 'desk'}
+function nth(el){let i=1,x=el;while((x=x.previousElementSibling))if(x.tagName===el.tagName)i++;return i}
+function selOf(el){const parts=[];
+ while(el&&el.nodeType===1&&el!==document.body){
+  if(el.id){parts.unshift('#'+CSS.escape(el.id));break}
+  let s=el.tagName.toLowerCase();const d=el.dataset;
+  if(d.act){s+=`[data-act="${CSS.escape(d.act)}"]`;['id','cat','view','tab','k','sec','img','v'].forEach(k=>{if(d[k]!=null)s+=`[data-${k}="${CSS.escape(d[k])}"]`});
+   const p=el.parentElement;if(p&&[...p.children].filter(x=>x.matches(s)).length>1)s+=`:nth-of-type(${nth(el)})`}
+  else s+=`:nth-of-type(${nth(el)})`;
+  parts.unshift(s);el=el.parentElement}
+ return parts.join(' > ')}
+function labelOf(el){const t=(el.getAttribute('title')||el.getAttribute('placeholder')||el.innerText||el.value||'').replace(/\s+/g,' ').trim();
+ return t?(t.length>60?t.slice(0,60)+'…':t):el.tagName.toLowerCase()}
+
+/* ---------- pins ---------- */
+function pinPos(it){const p=it.pin;if(!p)return null;const c=it.ctx||{},win=S.win==='open';
+ if(p.zone==='app'){if(!win||S.view!==c.view)return null;if(c.view==='updates'&&(S.tab!==c.tab||(c.tab==='available'&&S.cat!==c.cat)))return null}
+ else if(p.zone==='drawer'){if(!win||S.drawer!==c.drawer)return null}
+ else if(p.zone==='npanel'){if(!win||!S.notifOpen)return null}
+ else if(p.zone==='modal'){if(!win||!S.modal||S.modal.type!==c.modal)return null}
+ else if(p.zone==='titlebar'){if(!win)return null}
+ let el=null;try{el=document.querySelector(p.sel)}catch(_){}
+ if(!el)return null;const r=el.getBoundingClientRect();if(!r.width&&!r.height)return null;
+ const x=r.left+p.rx*r.width,y=r.top+p.ry*r.height;
+ const sc=el.closest('.scroll,.nlist,.dr-sec');if(sc){const sr=sc.getBoundingClientRect();if(y<sr.top||y>sr.bottom)return null}
+ return {x,y}}
+function drawPins(){let h='';
+ if(ui.pins&&!ui.picking){const pulse=Date.now()<ui.pulseUntil?ui.pulse:null;
+  F.items.forEach((it,i)=>{const pt=pinPos(it);if(!pt)return;
+   h+=`<div class="fb-pin ${done(it)?'done':''} ${pulse===it.id?'pulse':''}" data-fpin="${it.id}" style="left:${Math.round(pt.x)}px;top:${Math.round(pt.y)}px" title="#${i+1} ${e(it.reviewer)}: ${e(it.text.slice(0,90))}">${i+1}</div>`})}
+ if(pinLayer.innerHTML!==h)pinLayer.innerHTML=h}
+setInterval(drawPins,150);
+
+/* ---------- UI ---------- */
+const wrap=h=>`<div class="fb-dim"><div class="fb-dlg">${h}</div></div>`;
+function menuHTML(){const u=unsent();
+ return `<div class="fb-menu">
+ <button data-fa="pin">${ic('search',16)}<span>Pin to element<small>Click a spot on the screen to comment on it</small></span></button>
+ <button data-fa="general">${ic('logs',16)}<span>General comment<small>About this screen, a flow or the concept</small></span></button>
+ <hr><button data-fa="panel">${ic('all',16)}<span>View all feedback (${F.items.length})</span></button>
+ <button data-fa="send">${ic('download',16)}<span>Save &amp; send back<small>${u?`${u} item${u>1?'s':''} not sent yet`:'Saves a copy of this app with your feedback'}</small></span></button>
+ <hr><button data-fa="tour">${ic('info',16)}<span>Take a quick tour<small>1-minute walkthrough of the feedback tool</small></span></button></div>`}
+function filtered(){const f=ui.flt,scr=screenOf(curCtx());
+ return F.items.map((it,i)=>({it,n:i+1})).filter(({it})=>(f.rev==='all'||it.reviewer===f.rev)&&(f.type==='all'||it.type===f.type)&&(f.pri==='all'||it.priority===f.pri)&&(f.st==='all'||it.status===f.st)&&(!f.screen||it.screen===scr||!!pinPos(it)))}
+function itemHTML(it,n){
+ return `<div class="fb-item"><div class="t"><span class="num ${done(it)?'g':''}">${n}</span><span class="fb-tag">${e(it.type)}</span><span class="fb-tag ${e(it.priority)}">${e(it.priority)}</span><span class="fb-tag st-${e(it.status)}">${e(STL[it.status]||it.status)}</span>${it.pin?'<span class="fb-tag">Pinned</span>':''}</div>
+ <div class="txt">${e(it.text)}</div>${it.note?`<div class="note"><b>Response:</b> ${e(it.note)}</div>`:''}
+ <div class="meta">${e(it.screen)}${it.pin?` · on “${e(it.pin.label)}”`:''}<br>${e(it.reviewer)}${it.role?' ('+e(it.role)+')':''} · ${e(fmt(it.created))}${it.ctx?' · Write Filter '+(it.ctx.wf?'ON':'OFF'):''}</div>
+ <div class="acts"><button data-fa="goto" data-id="${it.id}">Show in prototype</button><button data-fa="edit" data-id="${it.id}">Edit / status</button><button class="del" data-fa="del" data-id="${it.id}">Delete</button></div></div>`}
+function panelHTML(){const f=ui.flt,revs=[...new Set(F.items.map(i=>i.reviewer))].sort(),L=filtered();
+ const sel=(k,list,all)=>`<select data-ff="${k}"><option value="all">${all}</option>${list.map(v=>{const [val,lab]=Array.isArray(v)?v:[v,v];return `<option value="${e(val)}" ${f[k]===val?'selected':''}>${e(lab)}</option>`}).join('')}</select>`;
+ return `<div class="fb-panel"><div class="ph"><h2>${chatSvg} Reviewer feedback<button class="x" data-fa="panelClose">${ic('close',16)}</button></h2>
+ <div class="who">Reviewing as <b>${e(F.reviewer||'—')}</b> · <a data-fa="rename">change</a> · ${F.items.length} item${F.items.length!==1?'s':''}${revs.length>1?` from ${revs.length} reviewers`:''} · <a data-fa="tour">take the tour</a> · v${FB_VER}</div>
+ <div style="display:flex;gap:6px;margin-top:10px"><button class="fb-btn p" data-fa="pin" style="flex:1;justify-content:center">Pin to element</button><button class="fb-btn" data-fa="general" style="flex:1;justify-content:center">General comment</button></div></div>
+ <div class="flt">${sel('rev',revs,'All reviewers')}${sel('type',TYPES,'All types')}${sel('pri',PRI,'All priorities')}${sel('st',STAT,'All statuses')}
+ <label><input type="checkbox" data-ff="screen" ${f.screen?'checked':''}> This screen only</label><label><input type="checkbox" data-ff="pins" ${ui.pins?'checked':''}> Show pins on screen</label></div>
+ <div class="fb-list">${L.length?L.map(({it,n})=>itemHTML(it,n)).join(''):`<div class="fb-empty">${F.items.length?'No feedback matches these filters.':'No feedback yet.<br>Use <b>Pin to element</b> to comment on a specific spot,<br>or <b>General comment</b> for anything else.'}</div>`}</div>
+ <div class="pf"><button class="fb-btn p" data-fa="send">${ic('download',14)} Save &amp; send back${unsent()?` (${unsent()} new)`:''}</button>
+ <button class="fb-btn" data-fa="import">Import returned files</button><button class="fb-btn" data-fa="csv">Export CSV</button><button class="fb-btn" data-fa="md">Export Markdown</button><button class="fb-btn" data-fa="copy">Copy as text</button></div></div>`}
+function dlgHTML(){const d=ui.dlg;
+ if(d.t==='name')return wrap(`<div class="hd">${chatSvg} ${F.reviewer?'Change reviewer name':'Welcome, reviewer'}${F.reviewer?`<button class="x" data-fa="dlgClose">${ic('close',16)}</button>`:''}</div>
+ <div class="bd">${F.reviewer?'':'<p>This prototype has a built-in feedback tool. Your name is attached to every comment you add.</p>'}
+ ${ui.embCount&&!F.reviewer?`<div class="fb-ctx">This file already contains <b>${ui.embCount}</b> feedback item${ui.embCount>1?'s':''} from <b>${e(ui.embFrom)}</b>.</div>`:''}
+ <label class="f">Your name<input type="text" id="fb-name" data-fd="name" maxlength="60" value="${e(d.draft.name)}" placeholder="e.g. Priya Sharma"></label>
+ <label class="f">Role / team (optional)<input type="text" data-fd="role" maxlength="60" value="${e(d.draft.role)}" placeholder="e.g. PM, UX, Engineering"></label>
+ ${F.reviewer?'':`<div class="fb-ctx"><b>How it works</b><br>1. Use the prototype as usual.<br>2. Click <b>Feedback</b> (bottom-left) → <b>Pin to element</b> or <b>General comment</b>.<br>3. Everything is saved automatically in this browser.<br>4. When done, click <b>Save &amp; send back</b> and send the saved file to the prototype owner.</div>`}</div>
+ <div class="ft">${F.reviewer?'':'<button class="fb-btn" data-fa="nameTour">Take a quick tour first</button>'}<button class="fb-btn p" data-fa="nameSave">${F.reviewer?'Save':'Start reviewing'}</button></div>`);
+ if(d.t==='edit'){const it=d.draft,isNew=!d.id,n=F.items.findIndex(x=>x.id===d.id)+1;
+  return wrap(`<div class="hd">${isNew?'Add feedback':'Feedback #'+n}<button class="x" data-fa="dlgClose">${ic('close',16)}</button></div>
+  <div class="bd">
+   <div class="fb-ctx"><b>Screen:</b> ${e(it.screen)}${it.pin?`<br><b>Pinned to:</b> “${e(it.pin.label)}”`:''}<br><b>Device state:</b> ${e(stateOf(it.ctx))}${isNew?'':`<br><b>By:</b> ${e(it.reviewer)}${it.role?' ('+e(it.role)+')':''} · ${e(fmt(it.created))}`}</div>
+   <div class="f">Type<div class="fb-seg">${TYPES.map(t=>`<button data-fa="seg" data-k="type" data-v="${e(t)}" class="${it.type===t?'on':''}">${e(t)}</button>`).join('')}</div></div>
+   <div class="f">Priority<div class="fb-seg">${PRI.map(t=>`<button data-fa="seg" data-k="priority" data-v="${t}" class="${it.priority===t?'on':''}">${t}</button>`).join('')}</div></div>
+   <label class="f">Comment<textarea id="fb-text" data-fd="text" maxlength="4000" placeholder="What did you notice? What would you expect instead?">${e(it.text)}</textarea></label>
+   ${isNew?'':`<label class="f">Status<select data-fd="status">${STAT.map(([k,l])=>`<option value="${k}" ${it.status===k?'selected':''}>${l}</option>`).join('')}</select></label>
+   <label class="f">Response / owner note<textarea data-fd="note" style="min-height:60px" maxlength="2000" placeholder="Optional reply or decision">${e(it.note||'')}</textarea></label>`}
+  </div>
+  <div class="ft">${isNew?'':`<button class="fb-btn d" data-fa="del" data-id="${d.id}">Delete</button>`}<span class="grow">${isNew?'Saved automatically in this browser':''}</span><button class="fb-btn" data-fa="dlgClose">Cancel</button><button class="fb-btn p" data-fa="save">${isNew?'Save feedback':'Save changes'}</button></div>`)}
+ if(d.t==='sent')return wrap(`<div class="hd">${ic('checkc',20)} Feedback saved<button class="x" data-fa="dlgClose">${ic('close',16)}</button></div>
+  <div class="bd"><p>${d.count} feedback item${d.count!==1?'s were':' was'} saved into a copy of the prototype:</p>
+  <div class="fb-ctx"><b>${e(d.name)}</b><br>${d.where?e(d.where):'Usually in your <b>Downloads</b> folder.'}</div>
+  <p><b>Next:</b> send this file back to the prototype owner via Teams, OneDrive or email. Opening it shows the prototype with your feedback inside.</p>
+  <p style="font-size:12px;color:#6b7380">Send the new file, not the original one. If email blocks .html attachments, share it through Teams or OneDrive.</p></div>
+  <div class="ft"><button class="fb-btn" data-fa="copy">Copy feedback as text</button><button class="fb-btn p" data-fa="dlgClose">Done</button></div>`);
+ return ''}
+/* ---------- guided tour ---------- */
+const TOUR=[
+ {t:'Quick tour: giving feedback',x:'This 1-minute tour shows how to leave feedback on the prototype and send it back to the owner. Use <b>Next</b> or the arrow keys; press <b>Esc</b> to skip at any time.'},
+ {sel:'.fb-fab',t:'The Feedback button',x:'Always here at the bottom-left, even when the DACC app is closed. The number shows how many feedback items are in this file. Click it to open the feedback menu.'},
+ {sel:'.fb-menu [data-fa="pin"]',menu:1,t:'Pin to element',x:'Choose this, then click any spot on the screen — a chip, a column header, a button. Your comment is attached to that exact spot.'},
+ {t:'Numbered pins',x:`Pinned feedback shows as a numbered marker <span class="fb-pin demo-pin">1</span> on the spot you clicked. Pins only appear on the screen where they were added. Click a pin to read or edit it.`},
+ {sel:'.fb-menu [data-fa="general"]',menu:1,t:'General comment',x:'For anything not tied to one element: a flow, the overall concept or a question. The current screen and device state (Write Filter, WMS, network, power) are recorded automatically.'},
+ {t:'What goes in a comment',x:'Pick a <b>Type</b> (UI / Visual, UX / Flow, Concept / Logic, Bug, Question), a <b>Priority</b> (High / Medium / Low) and write your comment. <b>Ctrl+Enter</b> saves. Everything is auto-saved in this browser as you go.'},
+ {sel:'.fb-menu [data-fa="panel"]',menu:1,t:'View all feedback',x:'Opens the list of everything you (and others, if imported) have added.'},
+ {sel:'.fb-panel .fb-list',panel:1,t:'Your feedback list',x:'Each item shows its type, priority and status. <b>Show in prototype</b> jumps to the exact screen and spot; <b>Edit / status</b> lets you change or delete it.'},
+ {sel:'.fb-panel .flt',panel:1,t:'Filters',x:'Narrow the list by reviewer, type, priority or status, show only feedback for the current screen, or hide the pins.'},
+ {sel:'.fb-panel .pf [data-fa="send"]',panel:1,t:'Save & send back',x:'When you are done, click this. It saves a copy of the app with your feedback inside (e.g. <b>DACC-OTA-Prototype_YourName_date.html</b>). Send that new file back via Teams or OneDrive.'},
+ {t:"You're all set",x:'Start exploring the prototype and add feedback whenever something stands out. You can replay this tour from <b>Feedback → Take a quick tour</b>.',last:1}];
+function startTour(){if(ui.picking)stopPick();ui.dlg=null;ui.tour=0;draw()}
+function endTour(){ui.tour=null;ui.menu=false;ui.open=false;F.toured=true;persist();draw()}
+function tourGo(d){const n=ui.tour+d;if(n<0)return;if(n>=TOUR.length){endTour();return}ui.tour=n;draw()}
+function tourHTML(){const i=ui.tour,s=TOUR[i];
+ return `<div class="fb-tour-block ${s.sel?'':'dim'}"></div>${s.sel?'<div class="fb-tour-spot"></div>':''}
+ <div class="fb-tour-card" role="dialog" aria-label="${e(s.t)}"><div class="st">Feedback tour · ${i+1} of ${TOUR.length}</div><h3>${e(s.t)}</h3><p>${s.x}</p>
+ <div class="dots">${TOUR.map((_,k)=>`<i class="${k===i?'on':''}"></i>`).join('')}</div>
+ <div class="ft">${s.last?'':'<a class="skip" data-fa="tourEnd" href="#">Skip tour</a>'}${i?'<button class="fb-btn" data-fa="tourPrev">Back</button>':''}<button class="fb-btn p" data-fa="tourNext" style="${s.last?'margin-left:auto':''}">${s.last?'Start giving feedback':i?'Next':"Let's go"}</button></div></div>`}
+function placeTour(){if(ui.tour==null)return;const s=TOUR[ui.tour],card=uiEl.querySelector('.fb-tour-card');if(!card)return;
+ const cw=card.offsetWidth,ch=card.offsetHeight,W=innerWidth,H=innerHeight,M=12,G=16;
+ const el=s.sel&&uiEl.querySelector(s.sel),spot=uiEl.querySelector('.fb-tour-spot');
+ if(!el){if(spot)spot.style.display='none';card.style.left=Math.round((W-cw)/2)+'px';card.style.top=Math.round((H-ch)/2)+'px';return}
+ const r=el.getBoundingClientRect(),p=6;
+ Object.assign(spot.style,{left:r.left-p+'px',top:r.top-p+'px',width:r.width+p*2+'px',height:r.height+p*2+'px'});
+ let x,y;
+ if(r.right+G+cw<=W-M){x=r.right+G;y=r.top+r.height/2-ch/2}
+ else if(r.left-G-cw>=M){x=r.left-G-cw;y=r.top+r.height/2-ch/2}
+ else if(r.top-G-ch>=M){x=r.left+r.width/2-cw/2;y=r.top-G-ch}
+ else{x=r.left+r.width/2-cw/2;y=Math.min(r.bottom+G,H-ch-M)}
+ card.style.left=Math.round(Math.max(M,Math.min(x,W-cw-M)))+'px';card.style.top=Math.round(Math.max(M,Math.min(y,H-ch-M)))+'px';
+ card.querySelector('[data-fa="tourNext"]')?.focus({preventScroll:true})}
+addEventListener('resize',placeTour);
+
+function draw(){const n=F.items.length;
+ if(ui.tour!=null){const s=TOUR[ui.tour];ui.menu=!!s.menu;ui.open=!!s.panel}
+ let h=`<button class="fb-fab" data-fa="fab" title="Reviewer feedback">${chatSvg} Feedback${n?`<span class="n">${n}</span>`:''}</button>`;
+ if(ui.menu&&!ui.open)h+=menuHTML();
+ if(ui.open)h+=panelHTML();
+ if(ui.dlg)h+=dlgHTML();
+ if(ui.picking)h+='<div class="fb-pick-bar">Click any element to pin feedback · Esc to cancel</div>';
+ if(ui.tour!=null)h+=tourHTML();
+ const ls=uiEl.querySelector('.fb-list'),top=ls?ls.scrollTop:0;
+ uiEl.innerHTML=h;const ls2=uiEl.querySelector('.fb-list');if(ls2)ls2.scrollTop=top;
+ if(ui.dlg&&ui.dlg.focus){const f=uiEl.querySelector(ui.dlg.focus);if(f){f.focus();ui.dlg.focus=null}}
+ placeTour();drawPins()}
+function toastFb(msg){const t=document.createElement('div');t.className='fb-toast';t.textContent=msg;tmp.appendChild(t);setTimeout(()=>t.remove(),3800)}
+
+/* ---------- actions ---------- */
+function needName(cb){if(F.reviewer)return false;openName(cb);return true}
+function openName(cb){ui.after=cb||null;ui.menu=false;ui.dlg={t:'name',draft:{name:F.reviewer||'',role:F.role||''},focus:'#fb-name'};draw()}
+function startPick(){ui.menu=false;ui.wasOpen=ui.open;ui.open=false;ui.picking=true;document.body.classList.add('fb-picking');draw()}
+function stopPick(){ui.picking=false;document.body.classList.remove('fb-picking');hl.remove();draw()}
+function openNew(pin){const c=curCtx();
+ ui.dlg={t:'edit',id:null,draft:{type:ui.lastType||'',priority:'Medium',text:'',pin,ctx:c,screen:pin&&pin.zone==='desk'?'Desktop / taskbar':screenOf(c),reviewer:F.reviewer,role:F.role},focus:'#fb-text'};ui.menu=false;draw()}
+function openEdit(id){const it=F.items.find(x=>x.id===id);if(!it)return;ui.menu=false;ui.dlg={t:'edit',id,draft:JSON.parse(JSON.stringify(it)),focus:'#fb-text'};draw()}
+function delItem(id){if(!confirm('Delete this feedback item?'))return;F.items=F.items.filter(x=>x.id!==id);F.deleted.push(id);persist();if(ui.dlg&&ui.dlg.id===id)ui.dlg=null;draw()}
+function save(){const d=ui.dlg.draft;
+ if(!d.type){toastFb('Choose a feedback type.');return}
+ if(!String(d.text||'').trim()){toastFb('Please write a comment.');uiEl.querySelector('#fb-text')?.focus();return}
+ if(ui.dlg.id){const it=F.items.find(x=>x.id===ui.dlg.id);Object.assign(it,{type:d.type,priority:d.priority,text:d.text.trim(),status:d.status,note:(d.note||'').trim(),updated:nowISO()})}
+ else{F.items.push({id:uid(),reviewer:F.reviewer,role:F.role||'',type:d.type,priority:d.priority,text:d.text.trim(),status:'open',note:'',screen:d.screen,ctx:d.ctx,pin:d.pin||null,created:nowISO(),updated:nowISO(),ver:FB_VER});ui.lastType=d.type}
+ persist();ui.dlg=null;if(ui.wasOpen){ui.open=true;ui.wasOpen=false}draw();toastFb('Feedback saved.')}
+function scrollToEl(el){const sc=el.closest('.scroll,.nlist,.dr-sec');if(!sc)return;const r=el.getBoundingClientRect(),sr=sc.getBoundingClientRect();sc.scrollTop+=r.top-sr.top-sc.clientHeight/2+r.height/2}
+function gotoItem(it){const c=it.ctx||{};ui.open=false;ui.menu=false;
+ if(!(it.pin&&it.pin.zone==='desk')){
+  if(!(S.modal&&S.modal.locked))S.modal=null;
+  S.win='open';S.view=c.view||'home';S.tab=c.tab||'available';S.cat=c.cat||'all';S.impFilter=c.impFilter||'all';
+  S.drawer=c.drawer&&item(c.drawer)?c.drawer:null;S.notifOpen=!!c.notif;render()}
+ draw();
+ const n=F.items.indexOf(it)+1;
+ if(c.modal)toastFb(`#${n} was given on a dialog (${c.modal}). Open that dialog to see the pin.`);
+ else if(it.pin){let el=null;try{el=document.querySelector(it.pin.sel)}catch(_){}
+  if(el){scrollToEl(el);ui.pulse=it.id;ui.pulseUntil=Date.now()+3500;drawPins()}else toastFb(`The element for #${n} isn't visible in the current prototype state.`)}
+ else toastFb(`#${n}: ${it.screen}`)}
+function buildFile(){const doc=document.documentElement.cloneNode(true),q=s=>doc.querySelector(s);
+ ['#app','#drawer','#npanel','#modal','#atoasts','#ostoasts','#overlay','#fb-root','#tsearch'].forEach(s=>{const x=q(s);if(x)x.innerHTML=''});
+ const w=q('#win');if(w){w.className='hidden';w.removeAttribute('style')}
+ const ov=q('#overlay');if(ov){ov.removeAttribute('class');ov.removeAttribute('style')}
+ const td=q('#tb-dacc');if(td)td.className='tb-btn tb-dacc';
+ const pr=q('#proto');if(pr)pr.className='proto';
+ const pc=q('#proto-car');if(pc)pc.innerHTML='&#9662;';
+ const b=q('body');if(b)b.classList.remove('fb-picking');
+ q('#fb-embedded').textContent=JSON.stringify({ver:FB_VER,savedAt:nowISO(),reviewer:F.reviewer,items:F.items}).replace(/</g,'\\u003c');
+ return '<!DOCTYPE html>\n'+doc.outerHTML}
+function download(text,name,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;tmp.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},3000)}
+async function sendBack(){if(needName(sendBack))return;
+ if(!F.items.length&&!confirm('You have no feedback yet. Save a copy anyway?'))return;
+ ui.menu=false;const html=buildFile(),safe=(F.reviewer||'reviewer').replace(/[^\w\- ]+/g,'').trim().replace(/\s+/g,'-')||'reviewer';
+ const name=`DACC-OTA-Prototype_${safe}_${stamp()}.html`;
+ if(window.showSaveFilePicker){try{const h=await window.showSaveFilePicker({suggestedName:name,types:[{description:'HTML file',accept:{'text/html':['.html']}}]});
+   const wr=await h.createWritable();await wr.write(html);await wr.close();F.lastSent=nowISO();persist();ui.dlg={t:'sent',name:h.name,where:'Saved to the location you chose.',count:F.items.length};draw();return}
+  catch(err){if(err&&err.name==='AbortError')return}}
+ download(html,name,'text/html');F.lastSent=nowISO();persist();ui.dlg={t:'sent',name,where:'',count:F.items.length};draw()}
+function importFiles(){const inp=document.createElement('input');inp.type='file';inp.multiple=true;inp.accept='.html,.htm,.json';
+ inp.onchange=async()=>{let files=0,added=0,bad=0;
+  for(const f of inp.files){try{const txt=await f.text();let data=null;
+    if(/\.json$/i.test(f.name))data=JSON.parse(txt);
+    else{const d=new DOMParser().parseFromString(txt,'text/html'),s=d.getElementById('fb-embedded');data=s?JSON.parse(s.textContent):null}
+    if(!data){bad++;continue}added+=merge(Array.isArray(data)?data:data.items);files++}catch(_){bad++}}
+  draw();toastFb(`Imported ${added} new/updated item${added!==1?'s':''} from ${files} file${files!==1?'s':''}${bad?` · ${bad} file(s) skipped`:''}.`)};
+ inp.click()}
+function rowsData(){return F.items.map((it,i)=>({'#':i+1,Reviewer:it.reviewer,Role:it.role||'',Type:it.type,Priority:it.priority,Status:STL[it.status]||it.status,Comment:it.text,Response:it.note||'',
+ Screen:it.screen,'Pinned element':it.pin?it.pin.label:'','Write Filter':it.ctx?(it.ctx.wf?'ON':'OFF'):'',WMS:it.ctx?(WMSL[it.ctx.wms]||it.ctx.wms):'',Network:it.ctx?it.ctx.net:'',
+ Created:fmt(it.created),Updated:fmt(it.updated),'Prototype version':it.ver||'',ID:it.id}))}
+function exportCsv(){const R=rowsData();if(!R.length){toastFb('No feedback to export.');return}const H=Object.keys(R[0]);
+ const q=v=>{let s=String(v??'');if(/^[=+\-@]/.test(s))s="'"+s;return `"${s.replace(/"/g,'""')}"`};
+ download('\ufeff'+[H.map(q).join(','),...R.map(r=>H.map(h=>q(r[h])).join(','))].join('\r\n'),`DACC-OTA-feedback_${stamp()}.csv`,'text/csv');toastFb('CSV exported.')}
+function mdText(){const by={};F.items.forEach((it,i)=>{(by[it.screen]=by[it.screen]||[]).push([it,i+1])});
+ let s=`# DACC OTA prototype – reviewer feedback\n\nExported ${fmt(nowISO())} · ${F.items.length} item(s) · prototype v${FB_VER}\n`;
+ Object.keys(by).forEach(k=>{s+=`\n## ${k}\n\n`;by[k].forEach(([it,n])=>{s+=`- **#${n} [${it.type} · ${it.priority} · ${STL[it.status]||it.status}]** ${it.text.replace(/\s*\n+\s*/g,' ')}${it.pin?` _(on “${it.pin.label}”)_`:''} — ${it.reviewer}, ${fmt(it.created)}\n${it.note?`  - Response: ${it.note.replace(/\s*\n+\s*/g,' ')}\n`:''}`})});
+ return s}
+function exportMd(){if(!F.items.length){toastFb('No feedback to export.');return}download(mdText(),`DACC-OTA-feedback_${stamp()}.md`,'text/markdown');toastFb('Markdown exported.')}
+function copyText(){if(!F.items.length){toastFb('No feedback to copy.');return}const t=mdText();
+ const fallback=()=>{const ta=document.createElement('textarea');ta.value=t;tmp.appendChild(ta);ta.select();try{document.execCommand('copy');toastFb('Feedback copied — paste it into Teams or email.')}catch(_){toastFb('Copy failed. Use Export Markdown instead.')}ta.remove()};
+ if(navigator.clipboard&&window.isSecureContext)navigator.clipboard.writeText(t).then(()=>toastFb('Feedback copied — paste it into Teams or email.'),fallback);else fallback()}
+
+/* ---------- events ---------- */
+root.addEventListener('click',ev=>{
+ const pin=ev.target.closest('[data-fpin]');if(pin){openEdit(pin.dataset.fpin);return}
+ const b=ev.target.closest('[data-fa]');if(!b)return;ev.preventDefault();const id=b.dataset.id;
+ switch(b.dataset.fa){
+  case 'fab':if(ui.open)ui.open=false;else ui.menu=!ui.menu;break;
+  case 'pin':if(!needName(startPick))startPick();return;
+  case 'general':if(!needName(()=>openNew(null)))openNew(null);return;
+  case 'panel':ui.menu=false;ui.open=true;break;
+  case 'panelClose':ui.open=false;break;
+  case 'send':sendBack();return;
+  case 'import':importFiles();return;
+  case 'csv':exportCsv();return;
+  case 'md':exportMd();return;
+  case 'copy':copyText();return;
+  case 'rename':openName();return;
+  case 'tour':startTour();return;
+  case 'tourNext':tourGo(1);return;
+  case 'tourPrev':tourGo(-1);return;
+  case 'tourEnd':endTour();return;
+  case 'nameSave':case 'nameTour':{const d=ui.dlg.draft,nm=String(d.name||'').trim();if(!nm){toastFb('Please enter your name.');uiEl.querySelector('#fb-name')?.focus();return}
+   const old=F.reviewer;if(old&&old!==nm)F.items.forEach(it=>{if(it.reviewer===old){it.reviewer=nm;it.updated=nowISO()}});
+   F.reviewer=nm;F.role=String(d.role||'').trim();persist();ui.dlg=null;const cb=b.dataset.fa==='nameTour'?startTour:ui.after;ui.after=null;draw();if(cb)cb();return}
+  case 'dlgClose':ui.dlg=null;if(ui.wasOpen){ui.open=true;ui.wasOpen=false}break;
+  case 'seg':ui.dlg.draft[b.dataset.k]=b.dataset.v;break;
+  case 'save':save();return;
+  case 'del':delItem(id);return;
+  case 'edit':openEdit(id);return;
+  case 'goto':gotoItem(F.items.find(x=>x.id===id));return;
+ }
+ draw()});
+root.addEventListener('input',ev=>{ev.stopPropagation();const t=ev.target;if(t.dataset.fd&&ui.dlg)ui.dlg.draft[t.dataset.fd]=t.value});
+root.addEventListener('change',ev=>{ev.stopPropagation();const t=ev.target;
+ if(t.dataset.fd&&ui.dlg){ui.dlg.draft[t.dataset.fd]=t.value;return}
+ const k=t.dataset.ff;if(!k)return;if(k==='pins')ui.pins=t.checked;else if(k==='screen')ui.flt.screen=t.checked;else ui.flt[k]=t.value;draw()});
+root.addEventListener('keydown',ev=>{ev.stopPropagation();
+ if(ev.key==='Escape'){if(ui.dlg&&(ui.dlg.t!=='name'||F.reviewer))ui.dlg=null;else if(ui.open)ui.open=false;else ui.menu=false;draw()}
+ if(ev.key==='Enter'&&(ev.ctrlKey||ev.metaKey)&&ui.dlg&&ui.dlg.t==='edit')save()});
+
+/* pin picking */
+const hl=document.createElement('div');hl.className='fb-pick-hl';
+function pickTarget(ev){let t=ev.target;if(!t||t.nodeType!==1||t.closest('#fb-root'))return null;const s=t.closest('svg');if(s)t=s.parentElement;
+ return t===document.body||t===document.documentElement?null:t}
+window.addEventListener('mousemove',ev=>{if(!ui.picking)return;const t=pickTarget(ev);if(!t){hl.remove();return}
+ const r=t.getBoundingClientRect();Object.assign(hl.style,{left:r.left+'px',top:r.top+'px',width:r.width+'px',height:r.height+'px'});if(!hl.isConnected)tmp.appendChild(hl)},true);
+['mousedown','mouseup','pointerdown','pointerup','dblclick'].forEach(tp=>window.addEventListener(tp,ev=>{if(ui.picking&&!(ev.target.closest&&ev.target.closest('#fb-root'))){ev.preventDefault();ev.stopImmediatePropagation()}},true));
+window.addEventListener('click',ev=>{if(!ui.picking||(ev.target.closest&&ev.target.closest('#fb-root')))return;ev.preventDefault();ev.stopImmediatePropagation();
+ const t=pickTarget(ev);stopPick();if(!t)return;const r=t.getBoundingClientRect();
+ openNew({sel:selOf(t),zone:zoneOf(t),rx:r.width?Math.min(1,Math.max(0,(ev.clientX-r.left)/r.width)):.5,ry:r.height?Math.min(1,Math.max(0,(ev.clientY-r.top)/r.height)):.5,label:labelOf(t)})},true);
+window.addEventListener('keydown',ev=>{if(ui.tour==null)return;
+ const k=ev.key,act=k==='Escape'?endTour:k==='ArrowRight'?()=>tourGo(1):k==='ArrowLeft'?()=>tourGo(-1):null;
+ if(act){ev.preventDefault();ev.stopImmediatePropagation();act()}},true);
+window.addEventListener('keydown',ev=>{if(ui.picking&&ev.key==='Escape'){ev.stopImmediatePropagation();stopPick();if(ui.wasOpen){ui.open=true;ui.wasOpen=false;draw()}}},true);
+window.addEventListener('beforeunload',ev=>{if(F.items.length&&unsent()){ev.preventDefault();ev.returnValue=''}});
+
+/* opened from SharePoint / Teams preview? */
+if(/sharepoint\.com|teams\.microsoft|officeapps|\.office\.com/i.test(location.host)){
+ const w=document.createElement('div');w.className='fb-warn';w.innerHTML='This prototype is opened inside a web preview, so it may not work and feedback may not be saved. <b>Download the file and open it from your computer.</b> <button style="margin-left:12px;color:#fff;text-decoration:underline">Dismiss</button>';
+ w.querySelector('button').onclick=()=>w.remove();tmp.appendChild(w)}
+
+/* boot */
+load();draw();
+if(!F.reviewer)setTimeout(()=>{if(!F.reviewer&&!ui.dlg)openName()},1900);
+})();
+</script>
+</body>
+</html>

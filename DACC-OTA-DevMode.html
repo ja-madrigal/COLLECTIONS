@@ -1,0 +1,1750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>DACC – Software Updates (OTA) Prototype · Dev Mode</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;font-family:Roboto,"Segoe UI",system-ui,-apple-system,sans-serif;color:#e8eef6;-webkit-font-smoothing:antialiased}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:none}
+.ic{flex:none;display:inline-block;vertical-align:middle}
+
+/* ---------- Desktop ---------- */
+#desktop{position:fixed;inset:0;overflow:hidden;background:
+ radial-gradient(60% 70% at 62% 78%,#0b4fd6 0%,#1c6cf2 22%,rgba(60,130,240,.55) 38%,transparent 60%),
+ radial-gradient(40% 50% at 30% 85%,rgba(30,100,235,.8) 0%,transparent 60%),
+ radial-gradient(35% 40% at 80% 40%,rgba(40,110,230,.55) 0%,transparent 65%),
+ linear-gradient(180deg,#b9d0e6 0%,#9fbdd9 50%,#8eb1d2 100%)}
+.desk-icons{position:absolute;top:18px;right:18px;display:flex;flex-direction:column;gap:14px}
+.desk-icon{width:86px;padding:8px 4px;border-radius:4px;text-align:center;font-size:12px;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.6);cursor:default;user-select:none}
+.desk-icon:hover{background:rgba(255,255,255,.18)}
+.desk-icon .di{width:44px;height:44px;margin:0 auto 6px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(160deg,#16324f,#0b1726);box-shadow:0 2px 6px rgba(0,0,0,.35)}
+.desk-icon .di.bin{background:linear-gradient(160deg,#dfe8f2,#a8bacd);color:#30475f}
+
+/* Taskbar */
+#taskbar{position:absolute;left:0;right:0;bottom:0;height:48px;background:rgba(232,238,246,.86);backdrop-filter:blur(20px);border-top:1px solid rgba(255,255,255,.6);display:flex;align-items:center;justify-content:center;color:#1b1f24;z-index:50}
+.tb-center{display:flex;gap:4px}
+.tb-btn{width:40px;height:40px;border-radius:5px;display:grid;place-items:center;position:relative}
+.tb-btn:hover{background:rgba(255,255,255,.7)}
+.tb-btn.on::after{content:"";position:absolute;bottom:2px;left:50%;transform:translateX(-50%);width:6px;height:3px;border-radius:2px;background:#7a8592}
+.tb-btn.active::after{width:16px;background:#0067c0}
+.tb-dacc{display:none}.tb-dacc.on{display:grid}
+.tb-right{position:absolute;right:8px;display:flex;align-items:center;gap:2px;font-size:12px}
+.tray{height:40px;padding:0 6px;border-radius:5px;display:flex;align-items:center;gap:8px;position:relative}
+.tray:hover{background:rgba(255,255,255,.7)}
+.tray .badge{position:absolute;top:5px;right:2px;min-width:14px;height:14px;border-radius:7px;background:#d4351c;color:#fff;font-size:9px;display:grid;place-items:center;padding:0 3px;font-weight:700}
+.clock{text-align:right;line-height:1.3;padding:0 8px}
+
+/* OS toasts */
+#ostoasts{position:absolute;right:12px;bottom:60px;display:flex;flex-direction:column;gap:10px;z-index:60}
+.ostoast{width:364px;background:rgba(243,246,250,.97);color:#1b1f24;border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,.25);padding:14px 16px;animation:tIn .25s ease}
+.ostoast .hd{display:flex;align-items:center;gap:8px;font-size:12px;color:#555;margin-bottom:8px}
+.ostoast .hd .x{margin-left:auto;color:#666}
+.ostoast b{display:block;font-size:14px;margin-bottom:3px}
+.ostoast p{font-size:13px;color:#444;line-height:1.4}
+.ostoast .acts{display:flex;gap:8px;margin-top:12px}
+.ostoast .acts button{flex:1;padding:6px;border-radius:4px;background:#e1e6ec;font-size:13px}
+.ostoast .acts button.p{background:#0067c0;color:#fff}
+@keyframes tIn{from{transform:translateX(30px);opacity:0}to{transform:none;opacity:1}}
+
+/* Fullscreen overlay (restart / servicing / recovery) */
+#overlay{position:fixed;inset:0;z-index:100;background:#000;display:none;color:#fff}
+#overlay.show{display:block}
+.boot{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px}
+.boot-t{font-size:16px;color:#cfd8e3;min-height:20px}
+.dell-logo{font-weight:700;letter-spacing:-1px;line-height:1;display:inline-flex;flex-direction:column;align-items:center}
+.dell-logo .w{font-size:34px}.dell-logo .w i{display:inline-block;transform:rotate(-28deg);font-style:normal}
+.dell-logo small{font-size:17px;font-weight:300;letter-spacing:0;margin-top:2px}
+.dell-logo.big .w{font-size:56px}.dell-logo.big small{font-size:24px}
+.spinner{width:28px;height:28px;border-radius:50%;border:3px solid rgba(255,255,255,.15);border-top-color:#41a5f5;animation:spin 1s linear infinite}
+.spinner.sm{width:14px;height:14px;border-width:2px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.svc{height:100%;display:flex;align-items:center;justify-content:center;background:radial-gradient(70% 70% at 50% 40%,#0f2440,#050b14)}
+.svc-box{width:620px}
+.svc-box h2{font-weight:300;font-size:34px;margin:26px 0 6px}
+.svc-box .lead{color:#9fb0c5;font-size:14px;margin-bottom:22px}
+.svc-steps{list-style:none;display:flex;flex-direction:column;gap:10px;margin-bottom:22px}
+.svc-steps li{display:flex;align-items:center;gap:10px;font-size:14px;color:#7e8ea3}
+.svc-steps li[data-st=run]{color:#fff}.svc-steps li[data-st=done]{color:#b7e3a1}
+.svc-steps .sic{width:18px;height:18px;display:grid;place-items:center}
+
+/* ---------- DACC window ---------- */
+#win{position:absolute;left:50%;top:calc(50% - 24px);transform:translate(-50%,-50%);width:min(1000px,65vw);height:min(650px,calc(100vh - 80px));border-radius:10px;overflow:hidden;display:flex;flex-direction:column;
+ background:radial-gradient(900px 500px at 75% 10%,rgba(33,64,104,.55),transparent 70%),linear-gradient(165deg,#132338 0%,#0d1a2b 55%,#0a1422 100%);
+ box-shadow:0 30px 80px rgba(0,0,0,.45),0 0 0 1px rgba(255,255,255,.06);z-index:20}
+#win.hidden{display:none}
+#win.max{left:0!important;top:0!important;transform:none!important;width:100%;height:calc(100% - 48px);border-radius:0}
+.titlebar{height:40px;flex:none;display:flex;align-items:center;padding:0 6px 0 14px;font-size:12px;color:#c9d4e2;user-select:none;position:relative}
+.titlebar .ttl{flex:1}
+.tsearch{position:absolute;left:50%;transform:translateX(-50%);width:270px;height:26px;border-radius:4px;background:rgba(255,255,255,.07);display:flex;align-items:center;gap:8px;padding:0 10px;color:#8d9cb0}
+.tsearch input{background:none;border:none;outline:none;flex:1;font-size:12px;color:#e8eef6}
+.tsearch input::placeholder{color:#7d8ca1}
+.admin{background:#1f6fe0;color:#fff;font-size:10px;padding:2px 8px;border-radius:9px;margin-right:12px}
+.tbtn{width:34px;height:30px;display:grid;place-items:center;border-radius:4px;color:#c9d4e2}
+.tbtn:hover{background:rgba(255,255,255,.08)}.tbtn.cls:hover{background:#c42b1c;color:#fff}
+.wbody{flex:1;position:relative;overflow:hidden}
+#app{position:absolute;inset:0}
+.scroll{position:absolute;inset:0;overflow:auto;padding:26px 44px 0}
+.scroll::-webkit-scrollbar{width:8px}.scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18);border-radius:4px}
+
+.splash{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.splash .spinner{margin-top:70px;width:18px;height:18px;border-width:2px}
+.splash .foot{position:absolute;bottom:34px;display:flex;flex-direction:column;align-items:center;gap:10px;font-size:13px;color:#dbe4ef}
+.pill{display:inline-flex;align-items:center;gap:6px;border:1px solid #4d8fe0;border-radius:14px;padding:4px 12px;font-size:12px}
+
+/* Home */
+.home{display:grid;grid-template-columns:240px 1fr;gap:44px;min-height:calc(100% - 26px);padding:10px 0 26px}
+.home-left{display:flex;flex-direction:column}
+.eyebrow{font-size:12px;letter-spacing:1.6px;color:#8fc1ef;text-transform:uppercase;margin-bottom:8px}
+.device{font-weight:300;font-size:30px;line-height:1.2;margin-bottom:22px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:9px 10px;font-size:12px;margin-bottom:28px}
+.kv dt{font-weight:600}.kv dd{color:#b9c6d6}
+.mini{background:rgba(255,255,255,.05);border-radius:6px;padding:14px;font-size:13px;margin-bottom:12px}
+.mini .r{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.mini a{color:#b9c6d6;text-decoration:underline;cursor:pointer;font-size:12px}
+.notif-link{margin-top:auto;display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:500;padding:8px 6px;border-radius:4px;align-self:flex-start;position:relative}
+.notif-link:hover{background:rgba(255,255,255,.06)}
+.ndot{background:#d4351c;color:#fff;font-size:10px;border-radius:8px;padding:1px 6px}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:28px}
+.tile{background:linear-gradient(180deg,#142c4d,#11264a);border-radius:8px;padding:0 20px;height:72px;display:flex;align-items:center;gap:14px;font-size:17px;font-weight:500;text-align:left;transition:background .15s;position:relative}
+.tile:hover{background:#1a3760}
+.tile .chev{margin-left:auto;color:#c9d4e2}
+.tile .dot{position:absolute;top:10px;right:10px;width:8px;height:8px;border-radius:50%;background:#d4351c}
+.feat-ic{width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.12);display:grid;place-items:center;position:relative}
+.feat-ic .badge{position:absolute;top:-3px;right:-5px;background:#d4351c;color:#fff;font-size:10px;font-weight:700;border-radius:8px;padding:1px 5px}
+.utils{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.util{border:1px solid rgba(255,255,255,.16);border-radius:5px;padding:11px;font-size:12px;color:#d7e0eb;display:flex;flex-direction:column;align-items:center;gap:6px}
+.util:hover{background:rgba(255,255,255,.04)}.util b{font-weight:600;color:#fff}
+
+/* Generic page */
+.page-head{display:flex;align-items:center;gap:12px}
+.page-head h1{font-weight:300;font-size:40px;letter-spacing:-.3px}
+.back{width:30px;height:30px;display:grid;place-items:center;border-radius:4px}.back:hover{background:rgba(255,255,255,.08)}
+.sub{color:#b9c6d6;font-size:13px;margin:2px 0 16px 42px}
+.btn{border:1px solid rgba(255,255,255,.85);border-radius:3px;padding:8px 18px;font-size:13px;font-weight:500;display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+.btn:hover:not(:disabled){background:rgba(255,255,255,.08)}
+.btn.primary{background:#0672cb;border-color:#0672cb;color:#fff}.btn.primary:hover:not(:disabled){background:#0a80e0}
+.btn.danger{background:#b3261e;border-color:#b3261e}.btn.danger:hover:not(:disabled){background:#c9302a}
+.btn.ghost{border-color:transparent}
+.btn.sm{padding:5px 12px;font-size:12px}
+.btn:disabled{opacity:.38;cursor:not-allowed}
+.link{color:#6cb4f5;font-size:12px;cursor:pointer;text-decoration:none;background:none;border:none;padding:0}
+.link:hover{text-decoration:underline}
+.link:disabled{color:#64748a;cursor:not-allowed;text-decoration:none}
+
+.status{display:flex;align-items:center;gap:16px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:12px 16px;margin-bottom:12px}
+.st-main{display:flex;align-items:center;gap:12px;flex:1}
+.st-main b{font-size:15px;font-weight:500;display:block}
+.st-main small{font-size:12px;color:#9fb0c5}
+.sdot{width:10px;height:10px;border-radius:50%;flex:none}
+.sdot.g{background:#6fcf5a}.sdot.a{background:#f2b33d}.sdot.r{background:#ef5350}
+.tagp{font-size:11px;border-radius:10px;padding:3px 9px;display:inline-flex;align-items:center;gap:5px;background:rgba(255,255,255,.07);color:#cfd9e6;white-space:nowrap}
+.tagp.on{background:rgba(242,179,61,.15);color:#f6c96d}
+.tagp.off{background:rgba(111,207,90,.13);color:#9be08a}
+.tagp.wms{background:rgba(66,153,240,.15);color:#8fc6fa}
+
+.banner{display:flex;gap:12px;align-items:flex-start;border-radius:6px;padding:11px 14px;font-size:13px;margin-bottom:10px;line-height:1.45;border-left:3px solid}
+.banner b{font-weight:600}
+.banner .bx{margin-left:auto;display:flex;gap:8px;align-items:center;flex:none}
+.banner.info{background:rgba(42,120,214,.13);border-color:#3d8fe8}
+.banner.warn{background:rgba(242,179,61,.10);border-color:#f2b33d}
+.banner.err{background:rgba(239,83,80,.12);border-color:#ef5350}
+.banner.ok{background:rgba(111,207,90,.10);border-color:#6fcf5a}
+
+.tabs{display:flex;background:#132b4c;border-radius:4px;margin:14px 0 16px;overflow:hidden}
+.tab{flex:1;padding:9px;font-size:13px;text-align:center;color:#dbe4ef}
+.tab:hover{background:rgba(255,255,255,.04)}
+.tab.active{background:#0a6fc2;color:#fff;font-weight:500}
+.tab .cnt{font-size:11px;background:rgba(255,255,255,.18);border-radius:8px;padding:1px 7px;margin-left:6px}
+
+.avail{display:grid;grid-template-columns:200px 1fr;gap:18px;padding-bottom:12px}
+.cats{display:flex;flex-direction:column;gap:2px;align-self:start;position:sticky;top:0}
+.cat{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:4px;font-size:13px;color:#cfd9e6;text-align:left}
+.cat:hover{background:rgba(255,255,255,.05)}
+.cat.active{background:rgba(10,111,194,.3);color:#fff;box-shadow:inset 3px 0 0 #2b8fef}
+.cat .n{margin-left:auto;font-size:11px;color:#9fb0c5}
+.cat .n.crit{color:#ff8f8f}
+.cat-sep{height:1px;background:rgba(255,255,255,.08);margin:10px 0}
+.cats .link{padding:4px 10px;text-align:left}
+
+table.grid{width:100%;border-collapse:collapse;font-size:13px}
+.grid th{text-align:left;font-weight:500;padding:9px 12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);color:#dfe8f3;white-space:nowrap}
+.grid td{padding:10px 12px;border:1px solid rgba(255,255,255,.12);vertical-align:middle}
+.grid tr.click{cursor:pointer}.grid tr.click:hover td{background:rgba(255,255,255,.035)}
+.grid tr.selrow td{background:rgba(10,111,194,.12)}
+.grid tr.flash td{animation:rowFlash 2.6s ease-out}
+@keyframes rowFlash{0%,35%{background:rgba(43,143,239,.42)}100%{background:rgba(10,111,194,.12)}}
+.grid tr.grp td{background:rgba(10,111,194,.12);font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:#8fc1ef;padding:7px 12px}
+.grid .nm{font-weight:500}
+.grid .ver{font-size:12px;color:#9fb0c5;margin-top:2px}.grid .ver b{color:#e8eef6;font-weight:500}
+.grid .tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:5px}
+.grid input[type=checkbox]{width:15px;height:15px;accent-color:#0a6fc2;cursor:pointer}
+.grid .muted{color:#9fb0c5}
+.chip{display:inline-block;font-size:11px;font-weight:600;padding:3px 10px;border-radius:10px;white-space:nowrap;min-width:96px;text-align:center}
+.chip.c-crit{background:rgba(239,83,80,.16);color:#ff9a97;border:1px solid rgba(239,83,80,.45)}
+.chip.c-rec{background:rgba(124,196,74,.14);color:#b4e58f;border:1px solid rgba(124,196,74,.45)}
+.chip.c-opt{background:rgba(66,153,240,.14);color:#8fc6fa;border:1px solid rgba(66,153,240,.45)}
+.imp{display:inline-flex;align-items:center;gap:5px;font-size:12px;white-space:nowrap}
+.imp.live{color:#9be08a}.imp.restart{color:#f6c96d}.imp.reimage{color:#ff9a97}
+.mtag{font-size:11px;padding:2px 8px;border-radius:3px;background:rgba(255,255,255,.07);color:#cfd9e6;display:inline-flex;gap:4px;align-items:center}
+.mtag.g{background:rgba(111,207,90,.13);color:#9be08a}.mtag.b{background:rgba(66,153,240,.15);color:#8fc6fa}.mtag.a{background:rgba(242,179,61,.13);color:#f6c96d}
+.empty{padding:50px 20px;text-align:center;color:#9fb0c5;border:1px dashed rgba(255,255,255,.12);border-radius:8px}
+.empty .ic{color:#6fcf5a;margin-bottom:10px}
+.empty b{display:block;color:#e8eef6;font-size:15px;font-weight:500;margin-bottom:4px}
+
+.footer-bar{position:sticky;bottom:0;margin:0 -44px;padding:12px 44px;background:linear-gradient(180deg,rgba(13,26,43,.85),#0c1828);backdrop-filter:blur(6px);border-top:1px solid rgba(255,255,255,.1);display:flex;align-items:center;gap:18px;z-index:2}
+.footer-bar .sum{flex:1;font-size:13px;color:#b9c6d6;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.footer-bar .sum b{color:#fff;font-weight:500}
+.footer-bar .big{font-size:17px;color:#6cb4f5;font-weight:500}
+.footer-bar .acts{display:flex;gap:10px}
+
+.oscard{background:rgba(22,52,92,.45);border-radius:8px;padding:16px 18px;margin-bottom:14px}
+.oscard h3{font-size:15px;font-weight:500;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.osgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;font-size:12px}
+.osgrid span{display:block;color:#9fb0c5;margin-bottom:2px}
+.img-row{display:flex;gap:16px;align-items:center;background:#132d52;border-radius:6px;padding:14px 16px;margin-bottom:8px}
+.img-row .meta{flex:1}
+.img-row .meta b{font-size:14px;font-weight:500}
+.img-row .meta small{display:block;color:#9fb0c5;font-size:12px;margin-top:3px}
+.img-row ul{margin:8px 0 0 16px;font-size:12px;color:#cfd9e6;line-height:1.6}
+
+/* Prefs */
+.pref-sec{background:rgba(22,52,92,.45);border-radius:8px;margin-bottom:14px;overflow:hidden}
+.pref-sec h3{font-size:14px;font-weight:500;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;gap:8px}
+.pref-sec h3 .lk{margin-left:auto;font-size:11px;font-weight:400;color:#8fc6fa;display:flex;gap:5px;align-items:center}
+.prow{display:flex;align-items:center;gap:16px;padding:11px 16px;font-size:13px;background:#132d52;margin:8px 10px;border-radius:5px}
+.prow .pl{flex:1}.prow .pl small{display:block;font-size:11px;color:#9fb0c5;margin-top:2px}
+.sel,.inp{background:#21344d;border:1px solid rgba(255,255,255,.18);border-radius:3px;padding:6px 10px;font-size:12px;min-width:200px;outline:none}
+.inp{background:#0d1a2c;border-color:rgba(255,255,255,.4)}
+.sel:disabled,.inp:disabled{opacity:.5}
+.sel option{background:#1a2c44}
+.tg{width:34px;height:18px;border-radius:9px;background:#8a97a8;position:relative;flex:none;transition:background .15s}
+.tg::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:left .15s}
+.tg.on{background:#0a6fc2}.tg.on::after{left:18px}
+.tg:disabled{opacity:.45}
+.tgw{display:flex;align-items:center;gap:8px;font-size:12px}
+
+/* Drawer */
+.drawer{position:absolute;top:0;right:0;bottom:0;width:min(640px,62%);background:#0f1f36;box-shadow:-20px 0 50px rgba(0,0,0,.45);z-index:10;display:flex;flex-direction:column;animation:dIn .2s ease}
+@keyframes dIn{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
+.dr-scroll{flex:1;overflow:auto;padding:16px 26px}
+.drawer h2{font-weight:300;font-size:26px;margin:12px 0 12px}
+.dmeta{display:grid;grid-template-columns:repeat(3,1fr);gap:8px 14px;font-size:12px;margin-bottom:12px}
+.dmeta span{color:#9fb0c5}
+.desc{font-size:13px;color:#cfd9e6;line-height:1.5;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid rgba(255,255,255,.08)}
+.dr-body{display:grid;grid-template-columns:170px 1fr;gap:18px}
+.dr-nav{display:flex;flex-direction:column;border-right:1px solid rgba(255,255,255,.08)}
+.dr-nav button{text-align:left;padding:9px 10px;font-size:13px;color:#b9c6d6}
+.dr-nav button.active{color:#6cb4f5;box-shadow:inset -2px 0 0 #2b8fef}
+.dr-sec h4{font-size:15px;font-weight:500;margin-bottom:10px}
+.dr-sec ul{margin-left:18px;font-size:13px;line-height:1.7;color:#dbe4ef}
+.dr-sec p{font-size:13px;line-height:1.55;color:#dbe4ef;margin-bottom:8px}
+.mono{font-family:Consolas,monospace;font-size:12px;word-break:break-all;color:#cfd9e6}
+.dr-foot{padding:12px 26px;border-top:1px solid rgba(255,255,255,.1);display:flex;gap:10px;align-items:center}
+.dr-foot .note{flex:1;font-size:12px;color:#9fb0c5;display:flex;gap:6px;align-items:center}
+
+/* Notification panel */
+.npanel{position:absolute;top:0;right:0;bottom:0;width:340px;background:#0f1f36;box-shadow:-20px 0 50px rgba(0,0,0,.45);z-index:11;display:flex;flex-direction:column;animation:dIn .2s ease}
+.npanel .nh{display:flex;align-items:center;padding:16px 18px 8px;font-size:18px}
+.npanel .nh button{margin-left:auto}
+.npanel .na{display:flex;justify-content:space-between;padding:4px 18px 12px;border-bottom:1px solid rgba(255,255,255,.08)}
+.npanel .na .del{color:#ff8f8f}
+.nlist{flex:1;overflow:auto}
+.nitem{padding:14px 18px;border-bottom:1px solid rgba(255,255,255,.07);font-size:13px;position:relative}
+.nitem.unread{background:rgba(42,120,214,.16)}
+.nitem .t{display:flex;gap:8px;align-items:center;font-weight:500;margin-bottom:6px;padding-right:20px}
+.nitem p{color:#b9c6d6;line-height:1.45;margin-left:24px}
+.nitem small{display:block;color:#7f90a6;font-size:11px;margin:6px 0 0 24px}
+.nitem .x{position:absolute;top:12px;right:12px;color:#7f90a6}
+.nitem .va{display:flex;justify-content:flex-end;margin-top:8px}
+
+/* Modal */
+#modal{position:absolute;inset:0;z-index:30;display:none}
+#modal.show{display:flex;align-items:center;justify-content:center;background:rgba(5,12,22,.55);backdrop-filter:blur(5px)}
+.dialog{width:600px;max-width:92%;max-height:92%;display:flex;flex-direction:column;background:linear-gradient(180deg,#10233f,#0d1c33);border-radius:8px;box-shadow:0 20px 60px rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.07)}
+.dialog.wide{width:720px}
+.dlg-b{padding:22px 24px 6px;overflow:auto}
+.dialog h2{font-weight:300;font-size:26px;margin-bottom:4px}
+.dialog .dsub{font-size:12px;color:#9fb0c5;margin-bottom:16px}
+.dlg-f{padding:14px 24px 18px;display:flex;justify-content:flex-end;align-items:center;gap:10px}
+.dlg-f .grow{flex:1;font-size:12px;color:#9fb0c5}
+.sec-t{font-size:11px;letter-spacing:1.3px;color:#8fc1ef;text-transform:uppercase;margin:14px 0 8px}
+.jlist{display:flex;flex-direction:column;gap:6px}
+.jr{background:#132d52;border-radius:5px;padding:10px 12px;font-size:13px}
+.jr .top{display:flex;align-items:center;gap:10px}
+.jr .top .n{flex:1;font-weight:500}
+.jr .top .s{font-size:12px;color:#9fb0c5}
+.jr .jr-t{font-size:12px;color:#9fb0c5;margin:6px 0 0 26px}
+.jr[data-st=ok] .jr-t{color:#9be08a}.jr[data-st=fail] .jr-t{color:#ff9a97}
+.jr-ic{width:16px;height:16px;display:grid;place-items:center}
+.bar{height:4px;background:rgba(255,255,255,.1);border-radius:2px;overflow:hidden;margin:7px 0 0 26px}
+.bar i{display:block;height:100%;width:0;background:#2b8fef;transition:width .12s linear}
+.jr[data-st=ok] .bar i{background:#6fcf5a}.jr[data-st=fail] .bar i{background:#ef5350}
+.bar.big{height:6px;margin:0}
+.checks{display:flex;flex-direction:column;gap:6px}
+.ck{display:flex;gap:10px;align-items:flex-start;background:#132d52;border-radius:5px;padding:9px 12px;font-size:13px}
+.ck .ci{width:18px;flex:none;padding-top:1px}
+.ck b{font-weight:500;display:block}.ck small{color:#b9c6d6;font-size:12px;line-height:1.45;display:block}
+.ck.pass .ci{color:#6fcf5a}.ck.warn .ci{color:#f2b33d}.ck.fail .ci{color:#ef5350}.ck.pend{opacity:.6}
+.ack{display:flex;gap:8px;align-items:center;margin-top:6px;font-size:12px;color:#e8eef6}
+.ack input,.opt input{accent-color:#0a6fc2}
+.opt{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;background:#132d52;border-radius:5px;margin-bottom:6px;font-size:13px;cursor:pointer}
+.opt small{display:block;color:#9fb0c5;font-size:12px;margin-top:2px}
+.opt.dis{opacity:.5;cursor:not-allowed}
+.stepper{display:flex;gap:6px;margin-bottom:18px}
+.stepper div{flex:1;font-size:11px;color:#7f90a6;padding-top:8px;border-top:3px solid rgba(255,255,255,.12)}
+.stepper div.on{color:#fff;border-color:#2b8fef}.stepper div.done{color:#9fb0c5;border-color:#1d5e9e}
+.warnbox{background:rgba(239,83,80,.12);border:1px solid rgba(239,83,80,.4);border-radius:5px;padding:12px 14px;font-size:13px;line-height:1.5;display:flex;gap:10px;margin:10px 0}
+.res{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.07);font-size:13px}
+.res small{display:block;color:#9fb0c5;font-size:12px;margin-top:2px}
+.res .ok{color:#6fcf5a}.res .bad{color:#ef5350}
+
+/* In-app toast (theme) */
+#atoasts{position:absolute;right:20px;bottom:20px;z-index:40;display:flex;flex-direction:column;gap:8px}
+.atoast{min-width:300px;max-width:420px;background:#13243c;border-left:4px solid #6ea204;border-radius:4px;padding:12px 14px;font-size:13px;display:flex;gap:10px;align-items:center;box-shadow:0 8px 24px rgba(0,0,0,.4);animation:tIn .2s ease}
+.atoast.err{border-color:#ef5350}.atoast.info{border-color:#2b8fef}
+.atoast .x{margin-left:auto;width:22px;height:22px;border:1px solid #4d8fe0;border-radius:50%;display:grid;place-items:center;color:#8fc6fa}
+
+/* Prototype controls */
+.proto{position:absolute;top:14px;left:14px;width:250px;z-index:70;font-size:12px;color:#14221a;border-radius:6px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+.proto-h{background:#7cf2b7;padding:9px 12px;font-weight:700;display:flex;justify-content:space-between;cursor:pointer;user-select:none}
+.proto-b{background:#e9fff3;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.proto.col .proto-b{display:none}
+.proto label{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.proto select{font-size:12px;padding:3px 4px;border:1px solid #9cc;border-radius:3px;background:#fff;color:#14221a;width:150px}
+.proto .chk{justify-content:flex-start}
+.proto button{background:#fff;border:1px solid #8fbfa5;border-radius:3px;padding:6px;font-size:12px;color:#14221a;text-align:left}
+.proto button:hover{background:#d4f7e4}
+.proto .hint{color:#4a6b59;font-size:11px;line-height:1.4}
+</style>
+<style id="dm-style">
+/* ================= Developer mode (inspector) ================= */
+body.dm-outline #desktop *:not(svg *),body.dm-outline #overlay *:not(svg *){outline:1px solid rgba(20,174,92,.6)!important;outline-offset:-1px}
+#dm-root{font:12px/1.4 Inter,"Segoe UI",system-ui,sans-serif;color:#e6e8ec;-webkit-font-smoothing:antialiased}
+#dm-root *{box-sizing:border-box}
+#dm-root button{font:inherit;color:inherit;cursor:pointer;background:none;border:none}
+#dm-root input,#dm-root select{font:inherit;color:#e6e8ec;background:#2a2e35;border:1px solid #3b4049;border-radius:4px;padding:5px 8px;outline:none}
+#dm-root input:focus{border-color:#14ae5c}
+#dm-ov{position:fixed;inset:0;pointer-events:none;z-index:2147483600}
+.dm-mg{position:fixed;border-style:solid;border-color:rgba(246,178,107,.42)}
+.dm-pd{position:fixed;border-style:solid;border-color:rgba(147,196,125,.5);background:rgba(111,168,220,.28);background-clip:padding-box}
+.dm-hv{position:fixed;outline:1px solid #18a0fb}
+.dm-sel{position:fixed;outline:2px solid #14ae5c;box-shadow:0 0 0 1px rgba(0,0,0,.35)}
+.dm-lbl{position:absolute;left:-2px;bottom:100%;margin-bottom:4px;white-space:nowrap;background:#14ae5c;color:#fff;font-size:11px;font-weight:600;padding:2px 6px;border-radius:3px}
+.dm-lbl.b{bottom:auto;top:100%;margin:4px 0 0}
+.dm-lbl.h{background:#18a0fb}
+.dm-sz{position:absolute;left:50%;top:100%;transform:translateX(-50%);margin-top:4px;background:#14ae5c;color:#fff;font-size:10px;font-weight:600;padding:1px 5px;border-radius:3px;white-space:nowrap}
+.dm-hx{position:fixed;outline:2px dashed #f24822;background:rgba(242,72,34,.08)}
+.dm-ml{position:fixed;background:#f24822}
+.dm-ml.h{height:1px}.dm-ml.v{width:1px}
+.dm-ml span{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:#f24822;color:#fff;font-size:10px;font-weight:700;padding:1px 4px;border-radius:3px;white-space:nowrap}
+.dm-panel{position:fixed;top:8px;right:8px;bottom:56px;width:400px;max-width:calc(100vw - 16px);min-width:320px;min-height:44px;z-index:2147483500;background:#1e2126;border:1px solid #3b4049;border-radius:10px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 18px 48px rgba(0,0,0,.5);transition:opacity .15s}
+.dm-panel.float{resize:both}
+.dm-panel.min{bottom:auto;height:auto!important;resize:none}
+.dm-panel.min .dm-hd{border-bottom:none}
+.dm-panel.ghost{opacity:.4}.dm-panel.ghost:hover{opacity:1}
+body.dm-peek .dm-panel{opacity:0!important;pointer-events:none}
+body.dm-drag,body.dm-drag *{cursor:grabbing!important;user-select:none!important}
+.dm-hd{display:flex;align-items:center;gap:6px;padding:8px 8px 8px 12px;border-bottom:1px solid #33373f;cursor:grab;user-select:none}
+.dm-ib{width:26px;height:26px;display:inline-grid!important;place-items:center;border-radius:4px;color:#9aa1ad!important;font-size:13px;line-height:1}
+.dm-ib:hover{background:#2c3038;color:#fff!important}
+.dm-ib.on{background:#454b55;color:#fff!important}
+.dm-ib svg{display:block}
+.dm-logo{background:#14ae5c;color:#fff;font-weight:700;border-radius:4px;padding:2px 6px;font-family:Consolas,monospace}
+.dm-hd b{font-size:13px}
+.dm-sp{flex:1}
+.dm-tb{display:inline-flex;align-items:center;gap:5px;padding:5px 8px;border-radius:4px;color:#c3c8d1!important}
+.dm-tb:hover{background:#2c3038}
+.dm-tb.on{background:#14ae5c;color:#fff!important}
+.dm-tabs{display:flex;border-bottom:1px solid #33373f;padding:0 6px}
+.dm-tabs button{padding:9px 10px;color:#9aa1ad!important;border-bottom:2px solid transparent;font-weight:500}
+.dm-tabs button.on{color:#fff!important;border-color:#14ae5c}
+.dm-opts{display:flex;align-items:center;gap:10px;padding:7px 12px;border-bottom:1px solid #33373f;color:#9aa1ad;font-size:11px}
+.dm-seg{display:inline-flex;background:#2a2e35;border-radius:4px;padding:2px}
+.dm-seg button{padding:2px 8px;border-radius:3px;font-size:11px;color:#9aa1ad!important}
+.dm-seg button.on{background:#454b55;color:#fff!important}
+.dm-body{flex:1;overflow:auto;padding-bottom:30px}
+.dm-body::-webkit-scrollbar{width:10px}.dm-body::-webkit-scrollbar-thumb{background:#3b4049;border-radius:5px;border:2px solid #1e2126}
+.dm-empty{padding:28px 20px;color:#9aa1ad;line-height:1.6}
+.dm-empty h3{color:#fff;font-size:14px;margin:0 0 8px}
+.dm-empty kbd,.dm-kbd{display:inline-block;background:#2a2e35;border:1px solid #454b55;border-bottom-width:2px;border-radius:3px;padding:0 5px;font:11px Consolas,monospace;color:#e6e8ec}
+.dm-keys{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;margin-top:12px}
+.dm-sec{border-bottom:1px solid #2d3138}
+.dm-sh{display:flex;align-items:center;gap:6px;padding:10px 12px 6px;font-weight:600;color:#fff;cursor:pointer;user-select:none}
+.dm-sh .car{color:#6b7280;width:10px;font-size:10px}
+.dm-sh .cb{margin-left:auto}
+.dm-sb{padding:0 12px 10px}
+.dm-r{display:grid;grid-template-columns:104px 1fr;gap:8px;align-items:start;padding:3px 0}
+.dm-r .k{color:#9aa1ad}
+.dm-v{font-family:Consolas,"Cascadia Mono",monospace;font-size:11.5px;color:#e6e8ec;word-break:break-word;border-radius:3px;padding:1px 4px;margin:-1px -4px;cursor:copy;display:flex;align-items:center;gap:6px}
+.dm-v:hover{background:#2c3038}
+.dm-v small{color:#7d8592;font-family:inherit}
+.dm-sw{width:14px;height:14px;border-radius:3px;flex:none;box-shadow:inset 0 0 0 1px rgba(255,255,255,.18);background-image:linear-gradient(45deg,#555 25%,transparent 25%,transparent 75%,#555 75%),linear-gradient(45deg,#555 25%,transparent 25%,transparent 75%,#555 75%);background-size:8px 8px;background-position:0 0,4px 4px;position:relative;overflow:hidden}
+.dm-sw i{position:absolute;inset:0}
+.cb,.dm-cb{color:#9aa1ad!important;border-radius:3px;padding:2px 6px;font-size:11px;font-weight:500}
+.cb:hover,.dm-cb:hover{background:#2c3038;color:#fff!important}
+.dm-btn{display:inline-flex;align-items:center;gap:5px;background:#2a2e35!important;border:1px solid #3b4049!important;border-radius:4px;padding:5px 9px;color:#e6e8ec!important;font-size:11.5px}
+.dm-btn:hover{background:#333842!important}
+.dm-btn.p{background:#14ae5c!important;border-color:#14ae5c!important;color:#fff!important}
+.dm-btn:disabled{opacity:.4;cursor:default}
+.dm-row{display:flex;flex-wrap:wrap;gap:6px}
+.dm-el{padding:12px}
+.dm-el .nm{font-size:14px;font-weight:600;color:#fff;display:flex;align-items:center;gap:8px}
+.dm-el .nm .t{font:11px Consolas,monospace;color:#9aa1ad;font-weight:400}
+.dm-crumbs{display:flex;flex-wrap:wrap;gap:2px;margin:8px 0;font-size:11px;color:#6b7280}
+.dm-crumbs button{color:#9aa1ad!important;padding:1px 4px;border-radius:3px}
+.dm-crumbs button:hover{background:#2c3038;color:#fff!important}
+.dm-crumbs .cur{color:#14ae5c;font-weight:600}
+.dm-note{background:#2a2e35;border-radius:4px;padding:7px 9px;color:#c3c8d1;margin:6px 0;line-height:1.5}
+.dm-note.w{background:rgba(242,184,57,.12);color:#f2c46d}
+.dm-bm{font:10px Consolas,monospace;color:#c3c8d1;text-align:center;margin:6px 0 4px}
+.dm-bm div{position:relative;padding:17px 26px;border:1px dashed #555c67;border-radius:3px}
+.dm-bm .m{background:rgba(246,178,107,.12)}
+.dm-bm .b{background:rgba(255,229,153,.08);border-style:solid;border-color:#6b7280}
+.dm-bm .p{background:rgba(147,196,125,.13)}
+.dm-bm .c{background:rgba(111,168,220,.22);padding:6px;border-style:solid;color:#fff}
+.dm-bm .lb{position:absolute;left:4px;top:2px;color:#7d8592;font-size:9px}
+.dm-bm i{position:absolute;font-style:normal}
+.dm-bm i.t{top:3px;left:50%;transform:translateX(-50%)}.dm-bm i.btm{bottom:3px;left:50%;transform:translateX(-50%)}
+.dm-bm i.l{left:6px;top:50%;transform:translateY(-50%)}.dm-bm i.r{right:6px;top:50%;transform:translateY(-50%)}
+.dm-code{position:relative;background:#16181c;border:1px solid #2d3138;border-radius:5px;margin-top:6px}
+.dm-code pre{margin:0;padding:10px 12px;font:11.5px/1.55 Consolas,"Cascadia Mono",monospace;color:#d4d7dd;white-space:pre-wrap;word-break:break-word;max-height:340px;overflow:auto}
+.dm-code .cb{position:absolute;top:6px;right:6px;background:#2a2e35}
+.dm-code .pk{color:#7cc4fa}.dm-code .pv{color:#f2c46d}.dm-code .ps{color:#14ae5c}.dm-code .pc{color:#6b7280}
+.dm-sub{display:flex;gap:2px;flex-wrap:wrap;padding:8px 12px;border-bottom:1px solid #2d3138}
+.dm-sub button{padding:4px 9px;border-radius:12px;color:#9aa1ad!important;font-size:11.5px}
+.dm-sub button.on{background:#14ae5c;color:#fff!important}
+.dm-meta{padding:8px 12px;color:#7d8592;font-size:11px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.dm-col{display:flex;align-items:center;gap:10px;padding:6px 12px;border-bottom:1px solid #262a30}
+.dm-col:hover{background:#24272d}
+.dm-col .sw{width:30px;height:30px;border-radius:5px;flex:none;box-shadow:inset 0 0 0 1px rgba(255,255,255,.15);cursor:copy}
+.dm-col .info{flex:1;min-width:0}
+.dm-col .info b{font:12px Consolas,monospace;color:#fff;cursor:copy}
+.dm-col .info small{display:block;color:#7d8592;font-size:11px}
+.dm-pillr{display:inline-block;background:#2a2e35;color:#c3c8d1;border-radius:8px;padding:0 6px;font-size:10px;margin-right:3px}
+.dm-cnt{color:#9aa1ad;font-size:11px;min-width:34px;text-align:right}
+.dm-ts{padding:10px 12px;border-bottom:1px solid #262a30}
+.dm-ts .smp{background:#0f1f36;border-radius:5px;padding:10px 12px;margin:0 0 6px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.dm-ts .spec{font:11px Consolas,monospace;color:#c3c8d1}
+.dm-ts .ttl{display:flex;align-items:center;gap:6px;margin-bottom:6px;color:#fff;font-weight:600}
+.dm-icg{display:grid;grid-template-columns:repeat(auto-fill,minmax(82px,1fr));gap:6px;padding:10px 12px}
+.dm-ict{background:#262a30;border:1px solid transparent;border-radius:6px;padding:12px 4px 7px;display:flex!important;flex-direction:column;align-items:center;gap:7px;color:#e6e8ec!important;font-size:10.5px;word-break:break-all}
+.dm-ict:hover{border-color:#454b55}.dm-ict.on{border-color:#14ae5c;background:#1d3a2b}
+.dm-ict small{color:#7d8592}
+.dm-icd{display:flex;gap:14px;align-items:center;padding:12px;border-bottom:1px solid #2d3138;background:#24272d}
+.dm-icd .pv{width:76px;height:76px;border-radius:8px;background:#0f1f36;display:grid;place-items:center;color:#e8eef6;flex:none}
+.dm-cmp{display:flex;align-items:center;gap:8px;padding:6px 12px;border-bottom:1px solid #262a30}
+.dm-cmp:hover{background:#24272d}
+.dm-cmp .n{flex:1;min-width:0;color:#fff;cursor:pointer}
+.dm-cmp .n small{display:block;font:10.5px Consolas,monospace;color:#7d8592}
+.dm-cmp.z{opacity:.45}
+.dm-grp{padding:10px 12px 4px;color:#7d8592;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.06em}
+.dm-tok{display:flex;flex-wrap:wrap;gap:5px}
+.dm-tok button{background:#2a2e35;border-radius:4px;padding:3px 7px;font:11px Consolas,monospace;color:#e6e8ec!important;cursor:copy}
+.dm-tok button small{color:#7d8592;margin-left:4px}
+.dm-tok button:hover{background:#333842}
+.dm-ly{font-size:11.5px;padding:4px 0}
+.dm-ln{display:flex;align-items:center;gap:4px;padding:2px 8px;cursor:pointer;white-space:nowrap;overflow:hidden;color:#c3c8d1}
+.dm-ln:hover{background:#2a2e35}
+.dm-ln.on{background:#1d3a2b;color:#fff}
+.dm-ln .tw{width:14px;text-align:center;color:#6b7280;flex:none;font-size:9px}
+.dm-ln .nm{color:#e6e8ec}
+.dm-ln .lt{font:10.5px Consolas,monospace;color:#6b7280;overflow:hidden;text-overflow:ellipsis}
+.dm-scr{padding:6px 12px 10px}
+.dm-scr button.dm-btn{margin:0 4px 6px 0}
+.dm-fab{position:fixed;left:16px;bottom:62px;z-index:2147483500;display:flex;align-items:center;gap:8px;background:#14ae5c!important;color:#fff!important;border-radius:22px;padding:10px 16px!important;font-weight:600!important;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.dm-toast{position:fixed;left:50%;transform:translateX(-50%);bottom:64px;z-index:2147483640;background:#14ae5c;color:#fff;border-radius:6px;padding:8px 14px;font-weight:500;box-shadow:0 8px 24px rgba(0,0,0,.35);max-width:520px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+.dm-hint{position:fixed;left:50%;top:10px;transform:translateX(-50%);z-index:2147483450;background:rgba(20,174,92,.95);color:#fff;border-radius:16px;padding:5px 14px;font-weight:500;pointer-events:none;box-shadow:0 6px 18px rgba(0,0,0,.3);transition:opacity .15s}
+body.dm-peek .dm-hint{opacity:0}
+</style>
+</head>
+<body>
+<div id="desktop">
+  <div class="desk-icons">
+    <div class="desk-icon" data-dbl="dacc"><div class="di" id="di-dacc"></div>Dell Application Control Center</div>
+    <div class="desk-icon"><div class="di bin" id="di-bin"></div>Recycle Bin</div>
+  </div>
+
+  <div id="win" class="hidden">
+    <div class="titlebar" id="titlebar">
+      <div class="ttl">Dell Application Control Center</div>
+      <div class="tsearch" id="tsearch"></div>
+      <span class="admin">Admin</span>
+      <button class="tbtn" data-act="settings" title="Settings" id="tb-gear"></button>
+      <button class="tbtn" data-act="winMin" title="Minimize" id="tb-min"></button>
+      <button class="tbtn" data-act="winMax" title="Maximize" id="tb-max"></button>
+      <button class="tbtn cls" data-act="winClose" title="Close" id="tb-close"></button>
+    </div>
+    <div class="wbody">
+      <div id="app"></div>
+      <div id="drawer"></div>
+      <div id="npanel"></div>
+      <div id="modal"></div>
+      <div id="atoasts"></div>
+    </div>
+  </div>
+
+  <div id="ostoasts"></div>
+
+  <div id="taskbar">
+    <div class="tb-center">
+      <button class="tb-btn" title="Start" id="tb-start"></button>
+      <button class="tb-btn" title="Search" id="tb-search"></button>
+      <button class="tb-btn" title="File Explorer" id="tb-files"></button>
+      <button class="tb-btn" title="Microsoft Edge" id="tb-edge"></button>
+      <button class="tb-btn tb-dacc" title="Dell Application Control Center" id="tb-dacc" data-act="tbDacc"></button>
+    </div>
+    <div class="tb-right">
+      <button class="tray" data-act="osOpen" title="Dell software updates" id="tray-upd"></button>
+      <div class="tray" id="tray-sys"></div>
+      <div class="clock" id="clock"></div>
+    </div>
+  </div>
+
+  <div class="proto" id="proto">
+    <div class="proto-h" data-act="protoToggle"><span>Prototype controls</span><span id="proto-car">&#9662;</span></div>
+    <div class="proto-b">
+      <label>Write Filter <select data-proto="wf"><option value="1">ON</option><option value="0">OFF</option></select></label>
+      <label>WMS <select data-proto="wms"><option value="none">Not registered</option><option value="registered">Registered · local control</option><option value="managed">Registered · WMS-managed</option></select></label>
+      <label>Power <select data-proto="ac"><option value="1">AC connected</option><option value="0">Battery 35%</option></select></label>
+      <label>Network <select data-proto="net"><option value="online">Online</option><option value="metered">Metered</option><option value="offline">Offline</option></select></label>
+      <label class="chk"><input type="checkbox" data-proto="fail" /> Fail next install (error 1603)</label>
+      <button data-act="push">Simulate urgent security update</button>
+      <button data-act="runWindow">Run maintenance window now</button>
+      <button data-act="reset">Reset prototype</button>
+      <div class="hint">Simulates device conditions to demo pre-flight checks, UWF servicing mode, WMS control and failure / rollback paths.</div>
+    </div>
+  </div>
+</div>
+<div id="overlay"></div>
+
+<script>
+/* ================= Icons ================= */
+const I={
+back:'<path d="M19 12H5M11 6l-6 6 6 6"/>',chev:'<path d="M9 6l6 6-6 6"/>',chevd:'<path d="M6 9l6 6 6-6"/>',
+search:'<circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/>',
+gear:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+min:'<path d="M6 12h12"/>',max:'<rect x="6" y="6" width="12" height="12" rx="1"/>',close:'<path d="M6 6l12 12M18 6L6 18"/>',
+bell:'<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/>',
+info:'<circle cx="12" cy="12" r="9"/><path d="M12 16v-5M12 8h.01"/>',
+check:'<path d="M5 12.5l4.5 4.5L19 7.5"/>',checkc:'<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.8 2.8L16 10"/>',
+xc:'<circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/>',
+warn:'<path d="M12 3.5l9 16H3z"/><path d="M12 10v4M12 17h.01"/>',
+lock:'<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+refresh:'<path d="M20 11a8 8 0 0 0-14.6-4.5L4 8M4 4v4h4M4 13a8 8 0 0 0 14.6 4.5L20 16M20 20v-4h-4"/>',
+download:'<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+shield:'<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/>',
+wand:'<path d="M4 20L15 9M15 3v2M15 11v2M11 7h2M17 7h2M18 4l1-1M18 10l1 1"/>',
+sliders:'<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>',
+wf:'<path d="M20 12a8 8 0 1 1-3-6.2"/><circle cx="12" cy="12" r="3"/><path d="M17 3v3h3"/>',
+shortcut:'<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
+login:'<path d="M14 4h5a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-5M10 16l4-4-4-4M14 12H4"/>',
+logs:'<path d="M6 3h9l4 4v14H6z"/><path d="M9 12h7M9 16h7"/>',image:'<rect x="4" y="4" width="16" height="16" rx="2" stroke-dasharray="2 2"/><path d="M12 8v8M8 12h8"/>',
+tools:'<path d="M14.7 6.3a4 4 0 0 0 5 5L12 19a2 2 0 0 1-3-3z"/><path d="M4 4l6 6"/>',
+upd:'<path d="M20 12a8 8 0 1 1-2.3-5.7L20 8.6"/><path d="M20 4v4.6h-4.6"/><path d="M12 8v6M9.5 11.5L12 14l2.5-2.5"/>',
+power:'<path d="M12 3v8"/><path d="M6.3 7a8 8 0 1 0 11.4 0"/>',disk:'<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 14h.01M11 14h6"/>',chip:'<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/><circle cx="12" cy="12" r="3"/>',
+net:'<path d="M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><path d="M12 19.5h.01"/>',
+apps:'<rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/>',
+vdi:'<rect x="3" y="4" width="18" height="12" rx="1"/><path d="M8 20h8M12 16v4"/>',
+globe:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
+win:'<path d="M4 5.5l7-1v7H4zM13 4.2l7-1v8.3h-7zM4 13h7v7l-7-1zM13 13h7v8l-7-1z"/>',
+all:'<path d="M4 6h16M4 12h16M4 18h16"/>',
+vol:'<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9a4 4 0 0 1 0 6"/>',
+batt:'<rect x="2" y="7" width="17" height="10" rx="2"/><path d="M22 11v2"/>',
+plug:'<path d="M9 2v6M15 2v6M6 8h12v4a6 6 0 0 1-12 0zM12 18v4"/>',
+undo:'<path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/>',
+skip:'<circle cx="12" cy="12" r="9"/><path d="M6 6l12 12"/>',
+cal:'<rect x="4" y="5" width="16" height="16" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>',
+pkg:'<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/>',
+up:'<path d="M18 15l-6-6-6 6"/>'
+};
+const ic=(n,s=16,sw=1.6)=>`<svg class="ic" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">${I[n]}</svg>`;
+const spin=(sm=true)=>`<span class="spinner ${sm?'sm':''}"></span>`;
+const dellLogo=(big)=>`<div class="dell-logo ${big?'big':''}"><span class="w">D<i>E</i>LL</span><small>Technologies</small></div>`;
+const $=s=>document.querySelector(s);
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const fmtD=iso=>{const d=new Date(iso+'T00:00:00');return `${String(d.getDate()).padStart(2,'0')} ${MON[d.getMonth()]} ${d.getFullYear()}`};
+const fmtT=d=>d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
+const fmtDT=d=>`${String(d.getDate()).padStart(2,'0')} ${MON[d.getMonth()]} ${d.getFullYear()}, ${fmtT(d)}`;
+const relT=d=>{const n=new Date();return d.toDateString()===n.toDateString()?`Today, ${fmtT(d)}`:fmtDT(d)};
+const fmtMB=mb=>mb>=1024?(mb/1024).toFixed(2)+' GB':mb.toFixed(1)+' MB';
+const sha=s=>{let h=2166136261,o='';for(let k=0;k<8;k++){for(const c of s+k){h^=c.charCodeAt(0);h=Math.imul(h,16777619)>>>0}o+=h.toString(16).padStart(8,'0')}return o};
+
+const DEVICE={model:'Dell OptiPlex 3000 Thin Client',os:'Windows 11 IoT Enterprise LTSC 2024',name:'TC-FIN-0142',tag:'HJA7589',ip:'192.168.0.41',bios:'1.24.0',freeGB:18.4};
+const CATS=[{id:'all',l:'All updates',i:'all'},{id:'security',l:'Security',i:'shield'},{id:'dell',l:'Dell Apps',i:'apps'},{id:'vdi',l:'VDI & UC apps',i:'vdi'},{id:'browser',l:'Browser',i:'globe'},{id:'drivers',l:'Drivers',i:'disk'},{id:'bios',l:'BIOS',i:'shield'},{id:'firmware',l:'Firmware',i:'chip'},{id:'oskb',l:'OS KBs',i:'win'},{id:'os',l:'OS Images',i:'win'}];
+const CATL={security:'Security',dell:'Dell Apps',vdi:'VDI & Unified Communications',browser:'Browser',drivers:'Drivers',bios:'BIOS',firmware:'Firmware',oskb:'OS KBs',os:'OS Images'};
+const IMP={crit:'Critical',rec:'Recommended',opt:'Optional'};
+const COMPAT=['Dell OptiPlex 3000 Thin Client','Dell Pro Slim Thin Client (QCS1250)','Dell Latitude 3440 Thin Client','Dell OptiPlex All-in-One 7410 Thin Client'];
+
+/* ================= Data ================= */
+function ITEMS(){return [
+ {id:'dda',name:'Dell Device Agent',vendor:'Dell Inc.',cat:'dell',cur:'16.0.0.1',next:'17.0.0.1',imp:'rec',size:249.22,impact:'live',date:'2026-09-30',pkg:'V8MPD',wms:true,
+  desc:'Agent component for Windows IoT Enterprise clients. Enables integration with Dell Wyse Management Suite (WMS) and supports remote client administration, monitoring and OTA update orchestration.',
+  fixes:['Adds OTA update job orchestration commands from WMS','Improves check-in reliability through authenticated proxies','Reports UWF servicing-mode status and per-update results to WMS','Security hardening of local IPC channel'],
+  info:'The agent service restarts during installation (about 30 seconds). WMS check-in resumes automatically; no reboot is needed.',
+  versions:[['17.0.0.1','2026-09-30'],['16.0.0.1','2026-05-29'],['15.0.0.2','2026-02-27'],['14.9.0.3','2025-11-28']]},
+ {id:'dai',name:'Dell Application Installer',vendor:'Dell Inc.',cat:'dell',cur:'26.06.0.2',next:'26.09.0.1',imp:'opt',size:84.6,impact:'live',date:'2026-09-30',pkg:'4K7RN',
+  desc:'Installs and maintains Dell-provided thin client applications and their dependencies on Windows IoT Enterprise devices.',
+  fixes:['Supports delta packages to reduce download size by up to 60%','Fixes silent-install return code mapping for MSI 3010','Adds SHA-256 manifest validation'],
+  info:'Live update. No user impact.',versions:[['26.09.0.1','2026-09-30'],['26.06.0.2','2026-06-24'],['26.03.0.1','2026-03-18']]},
+ {id:'aws',name:'Amazon WorkSpaces',vendor:'Amazon Web Services',cat:'vdi',cur:'5.30.0',next:'5.31.1',imp:'rec',size:212.4,impact:'live',date:'2026-10-14',pkg:'AW531',
+  desc:'Amazon WorkSpaces client for connecting to WorkSpaces Personal and Pools over DCV and PCoIP.',
+  fixes:['Improved multi-monitor handling for DCV sessions','Webcam redirection performance improvements','Fixes reconnect after network change'],
+  info:'Active WorkSpaces sessions are disconnected during installation.',versions:[['5.31.1','2026-10-14'],['5.30.0','2026-08-05'],['5.29.2','2026-05-20']]},
+ {id:'wapp',name:'Windows App',vendor:'Microsoft',cat:'vdi',cur:'2.0.780.0',next:null,imp:'rec',size:96.3,impact:'live',date:'2026-10-21',pkg:'WA2780',
+  desc:'Microsoft Windows App for Azure Virtual Desktop, Windows 365, Microsoft Dev Box and Remote Desktop Services.',
+  fixes:['Teams media optimization reliability fixes','Improved single sign-on with Microsoft Entra ID'],
+  info:'Live update.',versions:[['2.0.780.0','2026-10-21'],['2.0.703.0','2026-08-26'],['2.0.640.0','2026-06-30']]},
+ {id:'hzn',name:'Omnissa Horizon Client',vendor:'Omnissa',cat:'vdi',cur:'2603 (8.18.0)',next:'2609 (8.19.0)',imp:'crit',size:318.7,impact:'restart',date:'2026-10-08',pkg:'HZ2609',wms:true,
+  desc:'Omnissa Horizon Client for Windows. Connects to Horizon virtual desktops and published applications using Blast Extreme.',
+  fixes:['Security: resolves CVE-2026-31842 (USB redirection privilege escalation, CVSS 8.1)','Blast codec performance improvements on Intel Celeron platforms','Fixes printer redirection for Unicode queue names'],
+  info:'Requires a device restart to update USB and printer redirection drivers. Active Horizon sessions are disconnected.',versions:[['2609 (8.19.0)','2026-10-08'],['2603 (8.18.0)','2026-04-02'],['2512 (8.17.0)','2025-12-10']]},
+ {id:'ctx',name:'Citrix Workspace',vendor:'Cloud Software Group',cat:'vdi',cur:'2603.1',next:'2609',imp:'crit',size:431.2,impact:'restart',date:'2026-10-02',pkg:'CW2609',wms:true,proc:'Citrix Workspace (1 active session)',
+  desc:'Citrix Workspace app for Windows. Provides access to Citrix Virtual Apps and Desktops and DaaS. Includes the Microsoft Teams optimization plugin.',
+  fixes:['Security: resolves CVE-2026-28811 (HDX local privilege escalation)','Updated Microsoft Teams VDI optimization (new Teams)','Improved HDX adaptive transport over high-latency links'],
+  info:'Requires a device restart. The active Citrix session will be closed — users should save their work. Installed with /silent /AutoUpdateCheck=disabled so Dell OTA remains the single update owner.',versions:[['2609','2026-10-02'],['2603.1','2026-04-15'],['2603','2026-03-25'],['2511','2025-11-19']]},
+ {id:'zoom',name:'Zoom VDI Plugin',vendor:'Zoom Communications',cat:'vdi',cur:'6.5.12.26810',next:'7.0.11.27050',imp:'opt',size:48.9,impact:'live',date:'2026-09-28',pkg:'ZV7011',
+  desc:'Zoom Virtual Desktop Infrastructure (VDI) plugin. Offloads Zoom audio and video processing from the virtual desktop to the thin client.',
+  fixes:['Supports Zoom Workplace VDI 7.0 host','Background blur offload for Citrix and Horizon'],
+  info:'Live update. Restart the VDI session to load the new plugin.',versions:[['7.0.11.27050','2026-09-28'],['6.5.12.26810','2026-06-12']]},
+ {id:'webex',name:'Cisco Webex App VDI Plugin',sub:'Bundled Webex Meetings VDI plugin',vendor:'Cisco Systems',cat:'vdi',cur:'46.2.0.31210',next:'46.8.0.35631',imp:'opt',size:121.5,impact:'live',date:'2026-09-28',pkg:'WX4680',
+  desc:'Cisco Webex App VDI plugin with bundled Webex Meetings VDI plugin for optimized calling and meetings in virtual desktops.',
+  fixes:['Bundled Webex Meetings VDI plugin 46.8','Echo cancellation improvements on USB headsets'],
+  info:'Live update. Restart the VDI session to load the new plugin.',versions:[['46.8.0.35631','2026-09-28'],['46.2.0.31210','2026-03-04']]},
+ {id:'jabber',name:'Cisco Jabber VDI Plugin',vendor:'Cisco Systems',cat:'vdi',cur:'15.1.4.59822',next:'15.2.1.60904',imp:'opt',size:74.2,impact:'live',date:'2026-09-28',pkg:'JB1521',
+  desc:'Cisco Jabber Softphone for VDI client package. Enables optimized Jabber calling in Citrix, Horizon and AVD sessions.',
+  fixes:['Adds support for Jabber 15.2 hosted agents','Fixes call drop on session roaming'],
+  info:'Live update.',versions:[['15.2.1.60904','2026-09-28'],['15.1.4.59822','2026-07-09']]},
+ {id:'edge',name:'Microsoft Edge',vendor:'Microsoft',cat:'browser',cur:'146.0.3856.62',next:'147.0.3912.51',imp:'crit',size:176.8,impact:'live',date:'2026-11-13',pkg:'ME147',wms:true,proc:'Microsoft Edge (3 windows)',
+  desc:'Microsoft Edge Stable channel (enterprise MSI). Edge self-update is disabled on Dell thin clients; Dell OTA delivers validated builds.',
+  fixes:['Security: fixes for 11 vulnerabilities including CVE-2026-9921 (V8, actively exploited)','Improved IE mode for line-of-business sites'],
+  info:'Edge will be closed during installation and tabs restored on next launch.',versions:[['147.0.3912.51','2026-11-13'],['146.0.3856.62','2026-10-16'],['145.0.3800.97','2026-09-18']]},
+ {id:'intelgfx',name:'Intel Graphics Driver',vendor:'Intel Corporation',cat:'drivers',cur:'31.0.101.5252',next:'31.0.101.5333',imp:'rec',size:642.5,impact:'restart',date:'2026-10-28',pkg:'IG5333',wms:true,
+  desc:'Intel UHD Graphics driver for Intel Celeron and Core i3/i5 processors in OptiPlex 3000 Thin Client.',
+  fixes:['Fixes display corruption when using multiple monitors with Citrix Workspace','Improves GPU virtualization performance for VDI sessions','Security: resolves CVE-2026-41172 (privilege escalation, CVSS 7.1)'],
+  info:'Requires a device restart. The display may flicker during installation.',versions:[['31.0.101.5333','2026-10-28'],['31.0.101.5252','2026-09-18'],['31.0.101.5184','2026-08-14']]},
+ {id:'realtek',name:'Realtek Audio Driver',vendor:'Realtek Semiconductor',cat:'drivers',cur:'6.0.9605.1',next:'6.0.9655.1',imp:'opt',size:124.8,impact:'live',date:'2026-10-15',pkg:'RA9655',
+  desc:'Realtek High Definition Audio driver for built-in speakers and audio jack.',
+  fixes:['Fixes audio dropout during Webex VDI calls','Improves microphone noise cancellation for Cisco Jabber'],
+  info:'Live update. Audio will briefly mute during installation.',versions:[['6.0.9655.1','2026-10-15'],['6.0.9605.1','2026-08-20']]},
+ {id:'intelwifi',name:'Intel Wi-Fi Driver',vendor:'Intel Corporation',cat:'drivers',cur:'23.80.0.6',next:'23.90.0.2',imp:'rec',size:38.4,impact:'live',date:'2026-10-22',pkg:'IW2390',wms:true,
+  desc:'Intel Wi-Fi 6 AX201 driver for wireless connectivity.',
+  fixes:['Improves roaming stability between access points','Fixes connection drops after resuming from sleep','Security: resolves CVE-2026-41588 (buffer overflow, CVSS 6.5)'],
+  info:'Live update. Wi-Fi will briefly disconnect during installation.',versions:[['23.90.0.2','2026-10-22'],['23.80.0.6','2026-09-01']]},
+ {id:'bios',name:'BIOS',vendor:'Dell Inc.',cat:'bios',cur:'1.24.0',next:'1.25.0',imp:'crit',size:18.2,impact:'restart',date:'2026-11-05',pkg:'BI1250',wms:true,
+  desc:'BIOS firmware for Dell OptiPlex 3000 Thin Client.',
+  fixes:['Security: resolves CVE-2026-43215 (BIOS privilege escalation, CVSS 8.2)','Adds support for new SSD models','Improves UEFI boot compatibility with Windows 11 IoT Enterprise LTSC 2024'],
+  info:'Requires a device restart. The system will restart twice during the update. Do not power off during BIOS update.',versions:[['1.25.0','2026-11-05'],['1.24.0','2026-08-15'],['1.23.0','2026-05-20']]},
+ {id:'me',name:'Intel ME Firmware',vendor:'Intel Corporation',cat:'firmware',cur:'16.1.30',next:'16.1.35',imp:'rec',size:42.6,impact:'restart',date:'2026-10-18',pkg:'ME1635',wms:true,
+  desc:'Intel Management Engine firmware for the platform.',
+  fixes:['Security: resolves CVE-2026-42117 (ME privilege escalation, CVSS 7.8)','Improves stability with Dell Device Agent check-in'],
+  info:'Requires a device restart. The system will restart once during the update.',versions:[['16.1.35','2026-10-18'],['16.1.30','2026-08-10']]},
+ {id:'kb5048621',name:'KB5048621 (October 2026 Cumulative)',vendor:'Microsoft',cat:'oskb',cur:'26100.3775',next:'26100.6584',imp:'crit',size:842.6,impact:'restart',date:'2026-10-14',pkg:'KB5048621',wms:true,
+  desc:'Windows 11 IoT Enterprise LTSC 2024 cumulative quality update for October 2026.',
+  fixes:['Security: fixes 17 vulnerabilities including CVE-2026-43801 (Windows Kernel, actively exploited)','Fixes VDI session disconnects when using USB redirection','Improves reliability of UWF Servicing Mode'],
+  info:'Requires a device restart. The update is applied via Windows Update; Dell OTA triggers the installation in the maintenance window.',versions:[['26100.6584','2026-10-14'],['26100.3775','2026-09-10'],['26100.2361','2026-08-13']]},
+ {id:'kb5048622',name:'KB5048622 (October 2026 .NET)',vendor:'Microsoft',cat:'oskb',cur:'8.0.11',next:'8.0.12',imp:'rec',size:156.4,impact:'live',date:'2026-10-14',pkg:'KB5048622',
+  desc:'.NET Framework 8.0 cumulative update for October 2026.',
+  fixes:['Security: resolves CVE-2026-41234 (remote code execution, CVSS 7.5)','Fixes crashes in VDI client applications using .NET'],
+  info:'Live update. Applications using .NET will be restarted during installation.',versions:[['8.0.12','2026-10-14'],['8.0.11','2026-09-10'],['8.0.10','2026-08-13']]}
+]}
+function HIST(){const d=(s)=>new Date(s);return [
+ {d:d('2026-11-02T09:12:00'),name:'Microsoft Edge',from:'145.0.3800.97',to:'146.0.3856.62',r:'ok',by:'Local · Admin',rep:true},
+ {d:d('2026-10-15T02:14:00'),name:'Cisco Jabber VDI Plugin',from:'15.1.3.58710',to:'15.1.4.59822',r:'ok',by:'WMS · Scheduled',rep:true},
+ {d:d('2026-10-15T02:08:00'),name:'Citrix Workspace',from:'2603',to:'2603.1',r:'ok',by:'WMS · Scheduled',rep:true},
+ {d:d('2026-09-03T14:52:00'),name:'Dell Application Installer',from:'26.03.0.1',to:'26.06.0.2',r:'ok',by:'Local · Admin (retry)',rep:true},
+ {d:d('2026-09-03T14:40:00'),name:'Dell Application Installer',from:'26.03.0.1',to:'26.06.0.2',r:'fail',err:'0x80070643 – installation failed, rolled back',by:'Local · Admin',rep:true},
+ {d:d('2026-03-12T02:30:00'),name:'OS image',from:'Dell image 2510 (A03)',to:'Dell image 2603 (A01)',r:'ok',by:'WMS · OS Image policy',rep:true}
+]}
+function NOTIFS(){return [
+ {id:1,t:'16 updates available',b:'5 critical security updates (Microsoft Edge, Citrix Workspace, Omnissa Horizon Client, BIOS, KB5048621) are ready to install.',time:'Today, 9:34 AM',unread:true,act:'updates'},
+ {id:2,t:'New OS image available',b:'Dell image 2609 (A02) for OptiPlex 3000 Thin Client is available from Dell Support.',time:'Today, 9:34 AM',unread:true,act:'os'},
+ {id:3,t:'Security update installed',b:'Microsoft Edge was updated to 146.0.3856.62.',time:'02 Nov, 9:12 AM',unread:false}
+]}
+function seed(){return {
+ wf:true,wfPending:null,wms:'registered',ac:true,net:'online',failNext:false,
+ win:'closed',max:false,view:'home',tab:'available',cat:'all',impFilter:'all',q:'',sel:new Set(),showSkipped:false,
+ drawer:null,dsec:'fixes',notifOpen:false,modal:null,checking:false,cancel:false,
+ lastChecked:new Date(Date.now()-47*60000),scheduled:null,
+ prefs:{source:'dell',share:'\\\\fs01\\dell-ota$',proxy:true,freq:'daily',autoDl:true,metered:'pause',auto:'off',winStart:'02:00',winEnd:'04:00',defer:'0',restart:'notify',postpone:true,uwfAuto:true},
+ items:ITEMS(),history:HIST(),notifs:NOTIFS(),nid:10,
+ os:{cur:{id:'2603',label:'Dell image 2603 (A01)',build:'26100.3775',date:'12 Mar 2026',by:'WMS OS Image policy'},
+  images:[
+   {id:'2609',label:'Dell image 2609 (A02)',build:'26100.6584',date:'2026-09-30',size:8601,latest:true,
+    notes:['Windows 11 IoT Enterprise LTSC 2024 with September 2026 cumulative update','Dell Device Agent 17.0.0.1 and Dell Application Installer 26.09.0.1 pre-installed','Updated Intel graphics, Realtek audio and Wi‑Fi drivers','Validated with BIOS 1.24.0'],includes:{dda:'17.0.0.1',dai:'26.09.0.1'}},
+   {id:'2606',label:'Dell image 2606 (A01)',build:'26100.4946',date:'2026-06-25',size:8344,
+    notes:['Windows 11 IoT Enterprise LTSC 2024 with June 2026 cumulative update','Dell Device Agent 16.0.0.1'],includes:{}}
+  ]}
+}}
+let S=seed();
+
+/* ================= Helpers ================= */
+const item=id=>S.items.find(i=>i.id===id);
+const managed=()=>S.wms==='managed';
+const avail=()=>S.items.filter(i=>i.next&&!i.skipped);
+const skippedList=()=>S.items.filter(i=>i.next&&i.skipped);
+const osUpdate=()=>{const l=S.os.images.find(x=>x.latest);return l&&l.id>S.os.cur.id?l:null};
+const restartPending=()=>S.items.filter(i=>i.restartPending);
+const totalAvail=()=>avail().length+(osUpdate()?1:0);
+const srcName=()=>({dell:'Dell Update Catalog (cloud)',wms:'WMS repository',share:'Network share '+S.prefs.share})[S.prefs.source];
+const windowLabel=()=>`Tonight, ${S.prefs.winStart}–${S.prefs.winEnd}`;
+const estMin=list=>Math.max(1,Math.ceil((list.reduce((a,i)=>a+i.size,0)/25+list.length*35)/60));
+const isSched=id=>S.scheduled&&S.scheduled.ids.includes(id);
+function notify(t,b,act,itemId){S.notifs.unshift({id:++S.nid,t,b,time:relT(new Date()),unread:true,act,item:itemId})}
+
+/* ================= Views ================= */
+function vSplash(){return `<div class="splash">${dellLogo(false)}<span class="spinner"></span>
+ <div class="foot">${ic('gear',22)}<span>Dell Application Control Center</span><span class="pill">Write Filter is <b>${S.wf?'ON':'OFF'}</b></span></div></div>`}
+
+function vHome(){
+ const a=avail(),crit=a.filter(i=>i.imp==='crit').length,n=totalAvail(),unread=S.notifs.filter(x=>x.unread).length,rp=restartPending().length;
+ const wmsTxt={none:'Not registered',registered:'Registered · Finance-TC',managed:'Managed · Finance-TC'}[S.wms];
+ let ut= n?`${n} update${n>1?'s':''} available${crit?` · <b style="color:#ffb3b0">${crit} critical</b>`:''}`:'Your device is up to date';
+ if(rp) ut=`Restart required to finish ${rp} update${rp>1?'s':''}`;
+ return `<div class="scroll"><div class="home">
+ <div class="home-left">
+  <div class="eyebrow">Welcome to your</div>
+  <h1 class="device">${DEVICE.model}</h1>
+  <dl class="kv"><dt>OS</dt><dd>${DEVICE.os}</dd><dt>Device Name</dt><dd>${DEVICE.name}</dd><dt>Service Tag</dt><dd>${DEVICE.tag}</dd><dt>IP</dt><dd>${DEVICE.ip}</dd><dt>OS Image</dt><dd>${S.os.cur.label}</dd><dt>WMS</dt><dd>${wmsTxt}</dd></dl>
+  <div class="mini"><div class="r"><b style="font-weight:500">Write Filter</b><span class="tgw">${S.wf?'ON':'OFF'}<button class="tg ${S.wf?'on':''}" data-act="wfToggle"></button></span></div>
+   <a data-act="wfToggle">Make changes in Write Filter Settings</a></div>
+  <button class="notif-link" data-act="notifs">${ic('bell')} Notifications ${unread?`<span class="ndot">${unread}</span>`:''}</button>
+ </div>
+ <div>
+  <div class="tiles">
+   <button class="tile" data-act="go" data-view="updates" style="position:relative">
+    ${n?`<span class="dot"></span>`:''}
+    ${ic('upd',20)}
+    <span>Software Updates</span>
+    <span class="chev">${ic('chev',18)}</span></button>
+   <button class="tile" data-act="na">${ic('wand',20)} Easy Setup <span class="chev">${ic('chev',18)}</span></button>
+   <button class="tile" data-act="na">${ic('sliders',20)} WMS Settings <span class="chev">${ic('chev',18)}</span></button>
+   <button class="tile" data-act="na">${ic('info',20)} Device Overview <span class="chev">${ic('chev',18)}</span></button>
+   <button class="tile" data-act="wfToggle">${ic('wf',20)} Write Filter Settings <span class="chev">${ic('chev',18)}</span></button>
+  </div>
+  <div class="eyebrow">Utilities</div>
+  <div class="utils">
+   <button class="util" data-act="na">${ic('shortcut')}<span>Manage <b>Windows Shortcut</b></span></button>
+   <button class="util" data-act="na">${ic('login')}<span>Enable <b>Auto-Login</b></span></button>
+   <button class="util" data-act="exportLogs">${ic('logs')}<span>Export <b>Device Logs</b></span></button>
+   <button class="util" data-act="na">${ic('image')}<span>Manage <b>Image Settings</b></span></button>
+   <button class="util" data-act="na">${ic('tools')}<span>Setup <b>ALM</b></span></button>
+  </div>
+ </div></div></div>`}
+
+function vUpdates(){
+ const a=avail(),crit=a.filter(i=>i.imp==='crit').length,n=totalAvail(),rp=restartPending();
+ let dot='g',head='Your device is up to date';
+ if(n){dot=crit?'r':'a';head=crit?`${crit} critical update${crit>1?'s':''} · ${n} total available`:`${n} update${n>1?'s':''} available`}
+ if(rp.length){dot='a';head='Restart required to finish installing updates'}
+ const wmsPill={none:`<span class="tagp">Locally managed</span>`,registered:`<span class="tagp wms">${ic('sliders',12)} WMS · local control</span>`,managed:`<span class="tagp wms">${ic('lock',12)} Managed by WMS</span>`}[S.wms];
+ const tabs=[['available',`Available<span class="cnt">${n}</span>`],['installed','Installed'],['history','History'],['prefs','Preferences']];
+ let body={available:tAvail,installed:tInstalled,history:tHistory,prefs:tPrefs}[S.tab]();
+ return `<div class="scroll">
+ <div class="page-head"><button class="back" data-act="go" data-view="home">${ic('back',20)}</button><h1>Software Updates</h1></div>
+ <p class="sub">Over-the-air updates for Dell apps, VDI &amp; UC clients, browser and OS images on this device.</p>
+ <div class="status">
+  <div class="st-main"><span class="sdot ${dot}"></span><div><b>${head}</b><small>Last checked ${relT(S.lastChecked)} · Source: ${esc(srcName())}</small></div></div>
+  <span class="tagp ${S.wf?'on':'off'}">${ic('wf',12)} Write Filter ${S.wf?'ON':'OFF'}</span>${wmsPill}
+  ${rp.length?`<button class="btn sm primary" data-act="restart">${ic('power',14)} Restart now</button>`:''}
+  <button class="btn sm" data-act="check" ${S.checking?'disabled':''}>${S.checking?spin()+' Checking…':ic('refresh',14)+' Check for updates'}</button>
+ </div>
+ ${banners()}
+ <div class="tabs">${tabs.map(([k,l])=>`<button class="tab ${S.tab===k?'active':''}" data-act="tab" data-tab="${k}">${l}</button>`).join('')}</div>
+ ${body}
+ </div>`}
+
+function banners(){
+ let h='';
+ if(S.net==='offline')h+=`<div class="banner err">${ic('net',18)}<div><b>No network connection.</b> Updates can't be checked or downloaded. Already-downloaded updates can still be installed.</div></div>`;
+ if(managed())h+=`<div class="banner info">${ic('lock',18)}<div><b>Updates on this device are managed by Wyse Management Suite</b> (group <b>Finance-TC</b>, policy “Thin Client OTA – Ring 2”). WMS-assigned updates install in the maintenance window <b>${windowLabel()}</b>. Local installs and preferences are locked by policy.</div></div>`;
+ if(S.wf&&S.tab==='available'&&totalAvail())h+=`<div class="banner warn">${ic('wf',18)}<div><b>Write Filter is ON.</b> Please disable it to apply updates.</div><div class="tgw" style="margin-left:auto">${S.wf?'ON':'OFF'}<button class="tg ${S.wf?'on':''}" data-act="wfToggle"></button></div></div>`;
+ if(S.scheduled)h+=`<div class="banner info">${ic('cal',18)}<div><b>${S.scheduled.ids.length} update${S.scheduled.ids.length>1?'s':''} scheduled</b> for ${S.scheduled.when}${S.scheduled.prefetch?' · pre-downloaded':''}.</div><div class="bx"><button class="link" data-act="runWindow">Run now</button><button class="link" data-act="unschedule">Cancel schedule</button></div></div>`;
+ return h}
+
+function rowTags(i){let t=[];
+ if(i.restartPending)t.push(`<span class="mtag a">${ic('power',11)} Restart pending</span>`);
+ if(i.downloaded)t.push(`<span class="mtag g">${ic('check',11)} Downloaded · ready to install</span>`);
+ if(isSched(i.id))t.push(`<span class="mtag b">${ic('cal',11)} Scheduled · ${S.scheduled.when}</span>`);
+ if(managed()&&i.wms&&i.next)t.push(`<span class="mtag b">${ic('lock',11)} WMS-assigned · ${windowLabel()}</span>`);
+ if(i.proc&&i.next)t.push(`<span class="mtag a">${ic('apps',11)} Running</span>`);
+ if(i.skipped)t.push(`<span class="mtag">${ic('skip',11)} Skipped</span>`);
+ return t.length?`<div class="tags">${t.join('')}</div>`:''}
+
+function tAvail(){
+ const a=avail(),os=osUpdate(),q=S.q.trim().toLowerCase();
+ const isSec=S.cat==='security';
+ const baseList=S.items.filter(i=>i.next&&(!i.skipped||S.showSkipped));
+ const list=baseList.filter(i=>isSec?i.imp==='crit':S.cat==='all'||i.cat===S.cat);
+ const impList=S.impFilter==='all'?list:list.filter(i=>i.imp===S.impFilter);
+ const count=c=>c==='all'?a.length+(os?1:0):c==='os'?(os?1:0):c==='security'?a.filter(i=>i.imp==='crit').length:a.filter(i=>i.cat===c).length;
+ const critC=c=>a.filter(i=>(c==='all'||c==='security'||i.cat===c)&&i.imp==='crit').length;
+ const cats=CATS.map(c=>`<button class="cat ${S.cat===c.id?'active':''}" data-act="cat" data-cat="${c.id}">${ic(c.i)} ${c.l}<span class="n ${critC(c.id)?'crit':''}">${count(c.id)}</span></button>`).join('');
+ const sk=skippedList().length;
+ const impOpts=[['all','All'],['crit','Critical'],['rec','Recommended'],['opt','Optional']];
+ const side=`<aside class="cats">${cats}<div class="cat-sep"></div>
+  ${S.sel.size?`<button class="link" data-act="selNone">Deselect all</button>`:''}
+  ${sk?`<button class="link" data-act="toggleSkipped">${S.showSkipped?'Hide':'Show'} skipped (${sk})</button>`:''}</aside>`;
+ if(S.cat==='os')return `<div class="avail">${side}<section>${osPanel()}</section></div>`;
+ let workList=impList;
+ if(q)workList=workList.filter(i=>(i.name+' '+i.vendor).toLowerCase().includes(q));
+ const order={crit:0,rec:1,opt:2};
+ let rows='';
+ const groups=isSec?['dell','vdi','browser','drivers','bios','firmware','oskb']:S.cat==='all'?['dell','vdi','browser','drivers','bios','firmware','oskb']:[S.cat];
+ groups.forEach(g=>{const gl=workList.filter(i=>i.cat===g).sort((x,y)=>order[x.imp]-order[y.imp]);if(!gl.length)return;
+  if(S.cat==='all'||isSec)rows+=`<tr class="grp"><td colspan="7">${CATL[g]}</td></tr>`;
+  gl.forEach(i=>{rows+=`<tr class="click ${S.sel.has(i.id)?'selrow':''}" id="row-${i.id}" data-act="details" data-id="${i.id}">
+   <td style="width:38px"><input type="checkbox" data-act="sel" data-id="${i.id}" ${S.sel.has(i.id)?'checked':''} ${managed()||i.skipped?'disabled':''}></td>
+   <td><div class="nm">${i.name}${i.sub?` <span class="muted" style="font-weight:400;font-size:12px">(${i.sub})</span>`:''}</div><div class="ver">${i.cur} → <b>${i.next}</b> · ${i.vendor}</div>${rowTags(i)}</td>
+   <td>${chip(i.imp)}</td><td>${impact(i.impact)}</td><td class="muted">${fmtMB(i.size)}</td><td class="muted">${fmtD(i.date)}</td><td style="width:34px">${ic('chev')}</td></tr>`})});
+ const osCard=(S.cat==='all'&&os&&!q)?`<div class="img-row" style="margin-top:12px">${ic('win',22)}<div class="meta"><b>OS image update available — ${os.label}</b><small>Current: ${S.os.cur.label} · ${fmtMB(os.size)} · Requires reimage (erases system drive)</small></div><button class="btn sm" data-act="cat" data-cat="os">Review OS images ${ic('chev',14)}</button></div>`:'';
+ const table=rows?`<table class="grid"><thead><tr><th><input type="checkbox" data-act="selVisible" ${managed()?'disabled':''} ${workList.length&&workList.filter(i=>!i.skipped).every(i=>S.sel.has(i.id))?'checked':''}></th><th>Update</th><th>Importance <select id="impFilterSelect" class="sel" style="min-width:0;width:100px;margin-left:8px;background:#21344d;border-color:rgba(255,255,255,.18);font-size:11px;padding:3px 6px">${[['all','All'],['crit','Critical'],['rec','Recommended'],['opt','Optional']].map(([v,l])=>`<option value="${v}" ${S.impFilter===v?'selected':''}>${l}</option>`).join('')}</select></th><th>Post Install</th><th>Size</th><th>Released</th><th></th></tr></thead><tbody>${rows}</tbody></table>`
+  :`<div class="empty">${ic('checkc',36)}<b>${q?'No updates match “'+esc(S.q)+'”':'Everything here is up to date'}</b>${q?'':'We\'ll notify you when new updates are published.'}</div>`;
+ return `<div class="avail">${side}<section>${table}${osCard}</section></div>${footer()}`}
+
+function footer(){
+ if(managed()){const w=avail().filter(i=>i.wms);
+  return `<div class="footer-bar"><div class="sum">${ic('lock')} <span>Deployed by WMS policy · <b>${w.length}</b> assigned update${w.length!==1?'s':''} · next window <b>${windowLabel()}</b></span></div>
+  <div class="acts"><button class="btn primary" data-act="installAssigned" ${w.length&&!S.wf?'':'disabled'}>Install assigned now${w.length?` (${w.length})`:''}</button></div></div>`}
+ const sel=[...S.sel].map(item).filter(Boolean),size=sel.reduce((a,i)=>a+i.size,0),rs=sel.some(i=>i.impact==='restart'),ok=sel.length&&!S.wf;
+ return `<div class="footer-bar"><div class="sum">${sel.length?`<span><b>${sel.length}</b> update${sel.length>1?'s':''} selected</span><span class="big">${fmtMB(size)}</span><span>${ic('clock',14)} ~${estMin(sel)} min</span><span>${rs?`${ic('power',14)} Restart required`:`${ic('check',14)} No restart`}</span>`:'<span>Select updates to download or install</span>'}${S.wf?`<span style="color:#f6c96d">${ic('lock',14)} Disable Write Filter to install</span>`:''}</div>
+ <div class="acts"><button class="btn" data-act="downloadOnly" ${ok?'':'disabled'}>${ic('download',14)} Download only</button><button class="btn" data-act="schedule" ${ok?'':'disabled'}>${ic('cal',14)} Schedule…</button><button class="btn primary" data-act="install" ${ok?'':'disabled'}>Install now${sel.length?` (${sel.length})`:''}</button></div></div>`}
+
+const chip=k=>`<span class="chip c-${k}">${IMP[k]}</span>`;
+const impact=k=>({live:`<span class="imp live">${ic('check',13)} No restart</span>`,restart:`<span class="imp restart">${ic('power',13)} Restart required</span>`,reimage:`<span class="imp reimage">${ic('warn',13)} Reimage</span>`})[k];
+
+function osPanel(){const c=S.os.cur,up=osUpdate();
+ return `<div class="oscard"><h3>${ic('win')} Current OS image</h3><div class="osgrid">
+  <div><span>Image</span>${c.label}</div><div><span>OS</span>${DEVICE.os}</div><div><span>Build</span>${c.build}</div><div><span>Applied</span>${c.date} · ${c.by}</div></div></div>
+ ${managed()?`<div class="banner info">${ic('lock',18)}<div>OS image deployment is controlled by the WMS <b>OS Image policy</b>. Contact your WMS administrator to schedule a reimage.</div></div>`:''}
+ <div class="sec-t">Images from Dell Support for ${DEVICE.model} (service tag ${DEVICE.tag})</div>
+ ${S.os.images.map(m=>{const isCur=m.id===c.id,older=m.id<c.id;return `<div class="img-row">${ic('disk',22)}<div class="meta">
+   <b>${m.label}</b> ${m.latest?'<span class="mtag b">Latest</span>':''} ${isCur?'<span class="mtag g">Installed</span>':''}
+   <small>${DEVICE.os} · Build ${m.build} · ${fmtD(m.date)} · ${fmtMB(m.size)} · ${impact('reimage')}</small>
+   <ul>${m.notes.map(n=>`<li>${n}</li>`).join('')}</ul></div>
+   ${isCur?'':`<button class="btn ${m.latest&&!older?'primary':''} sm" data-act="reimage" data-img="${m.id}" ${managed()?'disabled':''}>${older?'Reimage to older…':'Reimage device…'}</button>`}</div>`}).join('')}
+ ${up?'':`<div class="banner ok" style="margin-top:8px">${ic('checkc',18)}<div>This device is running the latest Dell OS image.</div></div>`}
+ <p class="muted" style="font-size:12px;margin:10px 0 20px;color:#9fb0c5">Reimaging replaces the operating system and erases the system drive. Windows quality updates on top of an image are delivered by Windows Update / WMS and are outside this module.</p>`}
+
+function tInstalled(){
+ const rows=['dell','vdi','browser','drivers','bios','firmware','oskb'].map(g=>`<tr class="grp"><td colspan="6">${CATL[g]}</td></tr>`+S.items.filter(i=>i.cat===g).map(i=>{
+  const idx=i.versions.findIndex(v=>v[0]===i.cur),prev=i.versions[idx+1];
+  const st=i.restartPending?`<span class="mtag a">${ic('power',11)} Restart pending</span>`:i.next&&!i.skipped?`<span class="mtag b">Update available · ${i.next}</span>`:`<span class="mtag g">${ic('check',11)} Up to date</span>`;
+  return `<tr><td><div class="nm">${i.name}</div><div class="ver">${i.vendor}</div></td><td>${i.cur}</td><td>${st}</td>
+  <td><select class="sel" style="min-width:150px" data-pol="${i.id}" ${managed()?'disabled':''}>${[['auto','Install automatically'],['notify','Notify only'],['manual','Manual']].map(([v,l])=>`<option value="${v}" ${(i.policy||'notify')===v?'selected':''}>${l}</option>`).join('')}</select></td>
+  <td><button class="link" data-act="details" data-id="${i.id}">Details</button>${prev?` &nbsp;·&nbsp; <button class="link" data-act="rollback" data-id="${i.id}" ${managed()?'disabled':''}>Roll back to ${prev[0]}</button>`:''}</td></tr>`}).join('')).join('');
+ return `<table class="grid" style="margin-bottom:24px"><thead><tr><th>Component</th><th>Installed version</th><th>Status</th><th>Update policy ${managed()?ic('lock',12):''}</th><th>Actions</th></tr></thead><tbody>
+ <tr class="grp"><td colspan="6">OS Image</td></tr><tr><td><div class="nm">${S.os.cur.label}</div><div class="ver">${DEVICE.os}</div></td><td>Build ${S.os.cur.build}</td><td>${osUpdate()?`<span class="mtag b">New image · ${osUpdate().label}</span>`:`<span class="mtag g">${ic('check',11)} Latest</span>`}</td><td class="muted">Manual (reimage)</td><td><button class="link" data-act="cat" data-cat="os">View images</button></td></tr>
+ ${rows}</tbody></table>`}
+
+function tHistory(){
+ return `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><span class="muted" style="font-size:12px;color:#9fb0c5">${S.history.length} events · results are ${S.wms==='none'?'stored locally':'reported to WMS'}</span><button class="btn sm" data-act="exportLogs">${ic('download',14)} Export update logs</button></div>
+ <table class="grid" style="margin-bottom:24px"><thead><tr><th>Date &amp; time</th><th>Update</th><th>Change</th><th>Result</th><th>Initiated by</th><th>WMS</th></tr></thead><tbody>
+ ${S.history.map(h=>`<tr><td class="muted">${fmtDT(h.d)}</td><td class="nm">${h.name}</td><td class="muted">${h.from} → ${h.to}</td>
+ <td>${h.r==='ok'?`<span class="mtag g">${ic('check',11)} Success</span>`:h.r==='rb'?`<span class="mtag b">${ic('undo',11)} Rolled back</span>`:`<span class="mtag" style="background:rgba(239,83,80,.15);color:#ff9a97">${ic('close',11)} Failed</span><div class="ver">${h.err}</div>`}</td>
+ <td class="muted">${h.by}</td><td>${h.rep?`<span class="muted">${ic('check',13)} Reported</span>`:'<span class="muted">—</span>'}</td></tr>`).join('')}</tbody></table>`}
+
+function tPrefs(){const p=S.prefs,L=managed(),d=L?'disabled':'';
+ const sel=(k,opts)=>`<select class="sel" data-pref="${k}" ${d}>${opts.map(([v,l,dis])=>`<option value="${v}" ${p[k]===v?'selected':''} ${dis?'disabled':''}>${l}</option>`).join('')}</select>`;
+ const tg=k=>`<span class="tgw">${p[k]?'ON':'OFF'}<button class="tg ${p[k]?'on':''}" data-act="prefTg" data-k="${k}" ${d}></button></span>`;
+ const lk=L?`<span class="lk">${ic('lock',12)} Managed by WMS policy</span>`:'';
+ const row=(l,s,c)=>`<div class="prow"><div class="pl">${l}${s?`<small>${s}</small>`:''}</div>${c}</div>`;
+ return `<div style="padding-bottom:20px">
+ <div class="pref-sec"><h3>${ic('net')} Update source${lk}</h3>
+  ${row('Source','Where this device looks for update packages and catalog metadata.',sel('source',[['dell','Dell Update Catalog (cloud)'],['wms','WMS repository',S.wms==='none'],['share','Local / network share']]))}
+  ${p.source==='share'?row('Share path','UNC path containing a Dell OTA catalog (catalog.xml + packages).',`<input class="inp" data-pref="share" value="${esc(p.share)}" ${d}>`):''}
+  ${row('Use system proxy','Uses the WinHTTP proxy configured on the device.',tg('proxy'))}</div>
+ <div class="pref-sec"><h3>${ic('download')} Check &amp; download${lk}</h3>
+  ${row('Check for updates',null,sel('freq',[['startup','At startup'],['daily','Daily'],['weekly','Weekly'],['manual','Manually only']]))}
+  ${row('Download updates automatically','Pre-downloads packages so installs complete faster in the maintenance window.',tg('autoDl'))}
+  ${row('On metered connections',null,sel('metered',[['pause','Pause downloads'],['crit','Download critical only'],['allow','Allow all downloads']]))}</div>
+ <div class="pref-sec"><h3>${ic('pkg')} Installation${lk}</h3>
+  ${row('Install automatically',null,sel('auto',[['off','Off – notify only'],['crit','Critical only'],['critrec','Critical & recommended'],['all','All updates']]))}
+  ${row('Maintenance window','Automatic and scheduled installs only run in this window.',`<span class="tgw"><input class="inp" style="min-width:0;width:96px" type="time" data-pref="winStart" value="${p.winStart}" ${d}> – <input class="inp" style="min-width:0;width:96px" type="time" data-pref="winEnd" value="${p.winEnd}" ${d}></span>`)}
+  ${row('Defer optional updates',null,sel('defer',[['0','Don\'t defer'],['7','7 days'],['14','14 days'],['30','30 days']]))}
+  ${row('When a restart is required',null,sel('restart',[['notify','Notify signed-in user'],['auto','Restart automatically in window'],['never','Never restart automatically']]))}
+  ${row('Allow user to postpone restart','Up to 3 times, 1 hour each.',tg('postpone'))}</div>
+ <div style="display:flex;gap:10px;justify-content:flex-end"><button class="btn" data-act="prefReset" ${d}>Restore defaults</button><button class="btn primary" data-act="prefSave" ${d}>Save</button></div></div>`}
+
+/* Details drawer */
+function vDrawer(){const i=item(S.drawer);if(!i)return '';
+ const latest=i.versions[0][0],idx=i.versions.findIndex(v=>v[0]===i.cur);
+ const secs=[['fixes','Fixes & Enhancements'],['info','Important Information'],['compat','Compatible Systems'],['integrity','Download & Integrity'],['versions','All Versions']];
+ const v=i.next||i.cur,file=`${i.name.replace(/\s+/g,'')}_${v.split(' ')[0]}.exe`;
+ const sec={fixes:`<h4>Fixes &amp; Enhancements</h4><ul>${i.fixes.map(f=>`<li>${f}</li>`).join('')}</ul>`,
+  info:`<h4>Important Information</h4><p>${i.info}</p>${i.proc?`<p>${ic('warn',14)} <b>${i.proc}</b> is running and will be closed during installation.</p>`:''}<p>Install impact: ${impact(i.impact)}${S.wf?' — with Write Filter ON this update is applied in UWF Servicing Mode.':''}</p>`,
+  compat:`<h4>Compatible Systems</h4><ul>${COMPAT.map(c=>`<li>${c}</li>`).join('')}</ul><h4 style="margin-top:14px">Supported Operating Systems</h4><ul><li>Windows 11 IoT Enterprise LTSC 2024</li><li>Windows 10 IoT Enterprise LTSC 2021</li></ul>`,
+  integrity:`<h4>Download &amp; Integrity</h4><p><b>File name:</b> ${file}<br><b>File size:</b> ${fmtMB(i.size)}<br><b>Publisher:</b> ${i.vendor} · repackaged &amp; signed by Dell Inc.</p><p>Packages are verified against the catalog checksum before install; mismatches are discarded and re-downloaded.</p><p><b>SHA-256:</b></p><p class="mono">${sha(i.id+v)}</p>`,
+  versions:`<h4>All Versions</h4><table class="grid"><thead><tr><th>Version</th><th>Release date</th><th></th></tr></thead><tbody>${i.versions.map((x,k)=>`<tr><td>${x[0]} ${x[0]===latest?'<span class="mtag b">Latest</span>':''} ${x[0]===i.cur?'<span class="mtag g">Installed</span>':''}</td><td class="muted">${fmtD(x[1])}</td><td>${k===idx+1&&!managed()?`<button class="link" data-act="rollback" data-id="${i.id}">${ic('undo',12)} Roll back</button>`:''}</td></tr>`).join('')}</tbody></table>`}[S.dsec];
+ const L=managed();
+ return `<div class="drawer"><div class="dr-scroll">
+  <button class="btn sm" data-act="closeDrawer">${ic('back',14)} Back</button>
+  <h2>${i.name} ${v}</h2>
+  <div class="dmeta"><div><span>Package ID: </span>${i.pkg}</div><div><span>Importance: </span>${IMP[i.imp]}</div><div><span>Version: </span>${v}</div>
+   <div><span>Release date: </span>${fmtD(i.date)}</div><div><span>Category: </span>${CATL[i.cat]}</div><div><span>Size: </span>${fmtMB(i.size)}</div>
+   <div><span>Installed: </span>${i.cur}</div><div><span>Impact: </span>${impact(i.impact)}</div><div><span>Vendor: </span>${i.vendor}</div></div>
+  <p class="desc">${i.desc}</p>
+  <div class="dr-body"><nav class="dr-nav">${secs.map(([k,l])=>`<button class="${S.dsec===k?'active':''}" data-act="dsec" data-sec="${k}">${l}</button>`).join('')}</nav><div class="dr-sec">${sec}</div></div>
+ </div>
+ <div class="dr-foot">${i.next?(L?`<span class="note">${ic('lock',14)} ${i.wms?'Assigned by WMS · installs '+windowLabel():'Not assigned by WMS policy'}</span>`
+  :`<span class="note">${i.downloaded?ic('check',14)+' Downloaded':''}</span>${i.skipped?`<button class="btn" data-act="unskip" data-id="${i.id}">Unskip</button>`:`<button class="btn ghost" data-act="skip" data-id="${i.id}">${ic('skip',14)} Skip this version</button>`}${S.wf?`<span class="note" style="color:#f6c96d;flex:none">${ic('lock',14)} Disable Write Filter to install</span>`:''}<button class="btn" data-act="downloadOne" data-id="${i.id}" ${i.downloaded||S.wf?'disabled':''}>${ic('download',14)} Download</button><button class="btn primary" data-act="installOne" data-id="${i.id}" ${S.wf?'disabled':''}>Install ${i.next}</button>`)
+  :`<span class="note">${ic('checkc',14)} ${i.name} is up to date.</span>`}</div></div>`}
+
+function vNotif(){const unread=S.notifs.some(n=>n.unread);
+ return `<div class="npanel"><div class="nh">Notifications<button class="tbtn" data-act="notifs">${ic('close')}</button></div>
+ <div class="na"><button class="link" data-act="nRead" ${unread?'':'disabled'}>Mark all as read</button><button class="link del" data-act="nDel">Delete all</button></div>
+ <div class="nlist">${S.notifs.length?S.notifs.map(n=>`<div class="nitem ${n.unread?'unread':''}"><div class="t">${ic(n.act?'upd':'checkc')} ${n.t}</div><p>${n.b}</p><small>${n.time}</small>
+  <button class="x" data-act="nX" data-id="${n.id}">${ic('close',14)}</button>${n.act?`<div class="va"><button class="btn sm primary" data-act="nGo" data-id="${n.id}">View Details</button></div>`:''}</div>`).join('')
+  :`<div class="empty" style="margin:20px;border:none">${ic('bell',30)}<b>No notifications</b></div>`}</div></div>`}
+
+/* ================= Modals ================= */
+function dlg(title,sub,body,foot,wide){return `<div class="dialog ${wide?'wide':''}"><div class="dlg-b"><h2>${title}</h2>${sub?`<div class="dsub">${sub}</div>`:''}${body}</div><div class="dlg-f">${foot}</div></div>`}
+const ckIc={pass:'checkc',warn:'warn',fail:'xc'};
+function checksHTML(m){return `<div class="checks">${m.checks.map((c,k)=>k<m.shown?`<div class="ck ${c.s}"><span class="ci">${ic(ckIc[c.s],18)}</span><div><b>${c.t}</b><small>${c.d}</small>${c.ack?`<label class="ack"><input type="checkbox" data-act="ack" data-k="${c.ack}" ${m.acks[c.ack]?'checked':''}> ${c.ackT}</label>`:''}</div></div>`
+  :`<div class="ck pend"><span class="ci">${k===m.shown?spin():ic('clock',18)}</span><div><b>${c.t}</b><small>${k===m.shown?'Checking…':'Waiting'}</small></div></div>`).join('')}</div>`}
+const checksOk=m=>m.shown>=m.checks.length&&!m.checks.some(c=>c.s==='fail')&&m.checks.every(c=>!c.ack||m.acks[c.ack]);
+
+function vModal(){const m=S.modal;if(!m)return '';
+ if(m.type==='preflight'){const size=m.jobs.reduce((a,j)=>a+j.item.size,0),restart=m.jobs.some(j=>j.item.impact==='restart');
+  const list=`<div class="jlist">${m.jobs.map(j=>`<div class="jr"><div class="top">${ic(j.kind==='rollback'?'undo':'pkg')}<span class="n">${j.item.name}</span><span class="s">${j.from} → ${j.to}</span>${impact(j.item.impact)}<span class="s">${j.item.downloaded?'Downloaded':fmtMB(j.item.size)}</span></div></div>`).join('')}</div>`;
+  const opts=!S.wf&&restart?`<div class="sec-t">Options</div><label class="opt"><input type="checkbox" data-act="mopt" data-k="autoRestart" ${m.autoRestart?'checked':''}><div>Restart automatically when installation completes<small>Otherwise you'll be prompted to restart.</small></div></label>`:'';
+  const go='Install now';
+  return dlg(m.title,`${m.jobs.length} item${m.jobs.length>1?'s':''} · ${fmtMB(size)} · ~${estMin(m.jobs.map(j=>j.item))} min${m.by.startsWith('WMS')?' · '+m.by:''}`,
+   list+`<div class="sec-t">Pre-flight checks</div>`+checksHTML(m)+opts,
+   `<span class="grow"></span><button class="btn" data-act="mClose">Cancel</button><button class="btn primary" data-act="pfGo" ${checksOk(m)?'':'disabled'}>${go}</button>`,true)}
+ if(m.type==='result'){const ok=m.res.filter(r=>r.st==='ok'),bad=m.res.filter(r=>r.st==='fail'),can=m.res.filter(r=>r.st==='cancelled'),rp=restartPending();
+  const t=bad.length?(ok.length?'Some updates failed':'Update failed'):can.length&&!ok.length?'Installation cancelled':m.dl?'Download complete':'Updates installed';
+  const rows=m.res.map(r=>`<div class="res">${r.st==='ok'?`<span class="ok">${ic('checkc',18)}</span>`:r.st==='fail'?`<span class="bad">${ic('xc',18)}</span>`:ic('skip',18)}<div><b style="font-weight:500">${r.j.item.name} ${r.j.to}</b><small>${r.st==='ok'?(m.dl?'Downloaded and verified · ready to install':r.j.kind==='rollback'?'Rolled back':r.j.item.restartPending?'Installed · restart required to finish':'Installed successfully'):r.st==='fail'?r.err:'Cancelled — nothing was changed'}</small></div></div>`).join('');
+  const extra=(m.servicing?`<div class="banner ok" style="margin-top:12px">${ic('wf',18)}<div>UWF Servicing Mode completed. Write Filter is <b>ON</b> again and changes were committed.</div></div>`:'')
+   +(rp.length&&!m.dl?`<div class="banner warn" style="margin-top:12px">${ic('power',18)}<div><b>Restart required</b> to finish installing ${rp.map(i=>i.name).join(', ')}.${m.countdown!=null?` Restarting automatically in <b>${m.countdown}s</b>…`:''}</div></div>`:'')
+   +(S.wms!=='none'&&!m.dl?`<p style="font-size:12px;color:#9fb0c5;margin-top:10px">${ic('check',12)} Results reported to WMS.</p>`:'');
+  const foot=(bad.length?`<button class="btn" data-act="retry">${ic('refresh',14)} Retry failed</button>`:'')
+   +(rp.length&&!m.dl?`<button class="btn" data-act="mClose">Restart later</button><button class="btn primary" data-act="restart">${ic('power',14)} Restart now</button>`:`<button class="btn primary" data-act="mClose">Done</button>`);
+  return dlg(t,m.servicing?'Applied in UWF Servicing Mode':'',rows+extra,foot)}
+ if(m.type==='schedule'){const ids=m.ids;
+  return dlg('Schedule installation',`${ids.length} update${ids.length>1?'s':''} · ${fmtMB(ids.map(item).reduce((a,i)=>a+i.size,0))}`,
+   `<label class="opt"><input type="radio" name="when" data-act="mopt" data-k="when" data-v="window" ${m.when==='window'?'checked':''}><div>Next maintenance window<small>${windowLabel()} (from Preferences)</small></div></label>
+    <label class="opt"><input type="radio" name="when" data-act="mopt" data-k="when" data-v="custom" ${m.when==='custom'?'checked':''}><div>Choose date &amp; time<small><input class="inp" type="datetime-local" data-mf="custom" value="${m.custom}" style="margin-top:6px" ${m.when==='custom'?'':'disabled'}></small></div></label>
+    <div class="sec-t">Options</div>
+    <label class="opt"><input type="checkbox" data-act="mopt" data-k="prefetch" ${m.prefetch?'checked':''}><div>Download now<small>Packages are downloaded and verified in the background so the window is used only for installing.</small></div></label>
+    ${S.wf?`<div class="banner warn">${ic('wf',18)}<div>Write Filter is ON — the scheduled install will run in UWF Servicing Mode.</div></div>`:''}`,
+   `<button class="btn" data-act="mClose">Cancel</button><button class="btn primary" data-act="schedGo">${ic('cal',14)} Schedule</button>`)}
+ if(m.type==='wf'){return dlg(`Turn Write Filter ${S.wf?'OFF':'ON'}?`,'A system restart is required for changes to take effect.',
+   `<p style="font-size:13px;color:#cfd9e6;line-height:1.5">${S.wf?'With the Write Filter OFF, changes persist across restarts and software updates can be installed. Remember to turn it back ON after updating.':'With the Write Filter ON, changes are discarded at restart and software updates cannot be installed.'}</p>`,
+   `<button class="btn" data-act="mClose">Cancel</button><button class="btn primary" data-act="wfGo">${ic('power',14)} Restart now</button>`)}
+ if(m.type==='reimage')return vReimage(m);
+ return ''}
+
+function vReimage(m){const img=S.os.images.find(x=>x.id===m.img),steps=['Select image','Keep settings','Pre-flight','Confirm'];
+ const stepper=`<div class="stepper">${steps.map((s,k)=>`<div class="${k+1===m.step?'on':k+1<m.step?'done':''}">${k+1}. ${s}</div>`).join('')}</div>`;
+ let body='',next='';
+ if(m.step===1){body=S.os.images.filter(x=>x.id!==S.os.cur.id).map(x=>`<label class="opt"><input type="radio" name="img" data-act="mopt" data-k="img" data-v="${x.id}" ${m.img===x.id?'checked':''}><div><b style="font-weight:500">${x.label}</b> ${x.latest?'<span class="mtag b">Latest · Recommended</span>':''}${x.id<S.os.cur.id?'<span class="mtag a">Older than installed</span>':''}<small>Build ${x.build} · ${fmtD(x.date)} · ${fmtMB(x.size)}</small></div></label>`).join('')
+   +`<p style="font-size:12px;color:#9fb0c5;margin-top:8px">Currently installed: ${S.os.cur.label} (build ${S.os.cur.build}). Images are matched to service tag ${DEVICE.tag}.</p>`;next='Next'}
+ if(m.step===2){const o=(k,t,s,dis)=>`<label class="opt ${dis?'dis':''}"><input type="checkbox" data-act="mopt" data-k="${k}" ${m[k]&&!dis?'checked':''} ${dis?'disabled':''}><div>${t}<small>${s}</small></div></label>`;
+  body=o('keepWms','Keep WMS registration','Device re-registers to the same WMS server and group after imaging.',S.wms==='none')
+   +o('keepDacc','Keep DACC configuration','Application Launch Manager entries, Write Filter exclusions, auto-login and shortcuts.')
+   +o('keepNet','Keep network & Wi‑Fi profiles','Static IP, proxy and saved wireless networks.')
+   +`<div class="warnbox">${ic('warn',18)}<div><b>Everything else on the system drive will be erased</b> — local user profiles, files and any applications not included in ${img.label}.</div></div>`;next='Next'}
+ if(m.step===3){body=checksHTML(m);next='Next'}
+ if(m.step===4){body=`<div class="warnbox">${ic('warn',18)}<div>The device will download ${img.label} (${fmtMB(img.size)}), restart into <b>Dell OS Recovery</b> and reimage. This takes about 25 minutes and cannot be cancelled once imaging starts.</div></div>
+  <p style="font-size:13px;margin:12px 0 6px">Type the service tag <b>${DEVICE.tag}</b> to confirm:</p><input class="inp" style="width:100%" data-mf="tag" value="${esc(m.tag)}" placeholder="Service tag" autocomplete="off">`;}
+ const canNext=m.step===3?checksOk(m):m.step===1?!!m.img:true;
+ return dlg('Reimage device',`${img?img.label:''}`,stepper+body,
+  `${m.step>1?'<button class="btn ghost" data-act="riBack">Back</button>':''}<span class="grow"></span><button class="btn" data-act="mClose">Cancel</button>`+
+  (m.step<4?`<button class="btn primary" data-act="riNext" ${canNext?'':'disabled'}>${next}</button>`:`<button class="btn danger" id="riGo" data-act="riGo" ${m.tag.trim().toUpperCase()===DEVICE.tag?'':'disabled'}>Erase &amp; reimage</button>`),true)}
+
+/* ================= Pre-flight ================= */
+function preflight(list,{reimage}={}){
+ const size=list.filter(i=>!i.downloaded).reduce((a,i)=>a+i.size,0),c=[];
+ const needRestart=reimage||S.wf||list.some(i=>i.impact==='restart');
+ if(S.net==='offline'){c.push(size?{s:'fail',t:'Network',d:'No connection to the update source. Connect to a network and try again.'}:{s:'pass',t:'Network',d:'Offline — all packages are already downloaded.'})}
+ else if(S.net==='metered'&&S.prefs.metered!=='allow'&&size)c.push({s:'warn',t:'Network · metered connection',d:`${fmtMB(size)} will be downloaded over a metered connection.`,ack:'metered',ackT:'Allow download over metered connection'});
+ else c.push({s:'pass',t:'Network',d:`${srcName()} reachable (38 ms)`});
+ const need=reimage?size:size*1.6;
+ c.push({s:'pass',t:'Storage',d:reimage?`${fmtMB(size)} will be staged to the recovery partition · 9.5 GB available`:`${fmtMB(need)} needed (download + extraction) · ${DEVICE.freeGB} GB free`});
+ if(S.ac)c.push({s:'pass',t:'Power',d:'AC power connected'});
+ else c.push(needRestart?{s:'fail',t:'Power',d:`Battery at 35%. Connect AC power — ${reimage?'reimaging':'restart-required updates'} need AC power or at least 50% battery.`}:{s:'warn',t:'Power',d:'On battery (35%). Live updates can proceed; keep the device powered on.'});
+ if(S.wf)c.push({s:'fail',t:'Write Filter is ON',d:'Disable the Write Filter (restart required) before applying updates.'});
+ else c.push({s:'pass',t:'Write Filter',d:'OFF — updates are applied directly.'});
+ const run=list.filter(i=>i.proc);
+ if(reimage)c.push({s:'warn',t:'Running apps & sessions',d:'All apps and VDI sessions will be closed and local data erased.',ack:'apps',ackT:'I understand local data will be erased'});
+ else if(run.length)c.push({s:'warn',t:'Running apps',d:`${run.map(i=>i.proc).join(', ')} will be closed during installation.`,ack:'apps',ackT:'Users have saved their work — close these apps'});
+ else c.push({s:'pass',t:'Running apps',d:'No conflicting apps running.'});
+ c.push({s:'pass',t:'Package integrity',d:'Signed by Dell Inc.; SHA-256 checksum verified before install.'});
+ return c}
+
+function animateChecks(){const m=S.modal;if(!m||!m.checks)return;m.shown=0;
+ const t=setInterval(()=>{if(S.modal!==m){clearInterval(t);return}m.shown++;renderModal();if(m.shown>=m.checks.length)clearInterval(t)},380)}
+
+function openPreflight(jobs,title,by){
+ S.modal={type:'preflight',jobs,title,by,checks:preflight(jobs.map(j=>j.item)),shown:0,acks:{},autoRestart:S.prefs.restart==='auto'};S.drawer=null;render();animateChecks()}
+const mkJobs=ids=>ids.map(item).filter(i=>i&&i.next).map(i=>({item:i,from:i.cur,to:i.next,kind:'update'}));
+
+/* ================= Install engine ================= */
+const jobRows=jobs=>`<div class="jlist">${jobs.map((j,k)=>`<div class="jr" id="jr${k}" data-st="wait"><div class="top"><span class="jr-ic">${ic('clock',16)}</span><span class="n">${j.item.name} ${j.to}</span><span class="s">${fmtMB(j.item.size)}</span></div><div class="jr-t">Queued</div><div class="bar"><i></i></div></div>`).join('')}</div>`;
+function setRow(k,st,p,t){const e=document.getElementById('jr'+k);if(!e)return;e.dataset.st=st;e.querySelector('.bar i').style.width=p+'%';e.querySelector('.jr-t').textContent=t;
+ e.querySelector('.jr-ic').innerHTML=st==='dl'?ic('download',16):st==='ok'?`<span style="color:#6fcf5a">${ic('checkc',16)}</span>`:st==='fail'?`<span style="color:#ef5350">${ic('xc',16)}</span>`:st==='cancel'?ic('skip',16):spin()}
+function setOverall(p,t){const b=document.getElementById('ov-bar'),x=document.getElementById('ov-t');if(b)b.style.width=p+'%';if(x&&t)x.textContent=t}
+function setCancel(on){const b=document.getElementById('pg-cancel');if(b)b.disabled=!on}
+
+async function runJobs(jobs,{servicing=false,dlOnly=false}={}){
+ S.cancel=false;const res=[],n=jobs.length;let failIdx=S.failNext&&!dlOnly?Math.min(1,n-1):-1;
+ for(let k=0;k<n;k++){const j=jobs[k],it=j.item;
+  if(S.cancel){setRow(k,'cancel',0,'Cancelled');res.push({j,st:'cancelled'});continue}
+  if(!it.downloaded||j.kind==='rollback'){setCancel(!servicing);const steps=25,dur=Math.min(2600,600+it.size*4);
+   for(let p=0;p<=steps;p++){if(S.cancel)break;const pc=p/steps*100;setRow(k,'dl',pc,`Downloading… ${fmtMB(it.size*pc/100)} of ${fmtMB(it.size)}`);setOverall(((k+pc/100*(dlOnly?1:.55))/n)*100,`Downloading ${it.name} (${k+1} of ${n})`);await sleep(dur/steps)}
+   if(S.cancel){setRow(k,'cancel',0,'Cancelled');res.push({j,st:'cancelled'});continue}}
+  setCancel(false);setRow(k,'verify',100,'Verifying SHA-256 checksum and signature…');await sleep(550);
+  if(dlOnly){setRow(k,'ok',100,'Downloaded and verified');res.push({j,st:'ok'});continue}
+  let failed=false;
+  for(let p=0;p<=100;p+=10){setRow(k,'inst',p,j.kind==='rollback'?`Rolling back to ${j.to}… ${p}%`:`Installing silently… ${p}%`);setOverall(((k+.55+p/100*.45)/n)*100,`Installing ${it.name} (${k+1} of ${n})`);await sleep(130);
+   if(k===failIdx&&p>=60){failed=true;break}}
+  if(failed){const err=`Installer exited with code 1603. Changes were rolled back — ${j.from} remains installed.`;setRow(k,'fail',100,err);res.push({j,st:'fail',err});S.failNext=false;syncProto()}
+  else{setRow(k,'ok',100,it.impact==='restart'&&!servicing?'Installed — restart required':'Installed');res.push({j,st:'ok'})}}
+ setOverall(100,'Finished');return res}
+
+function finishJobs(res,by,{servicing=false,dlOnly=false}={}){
+ res.forEach(r=>{const it=r.j.item;
+  if(dlOnly){if(r.st==='ok')it.downloaded=true;return}
+  if(r.st==='ok'){S.history.unshift({d:new Date(),name:it.name,from:r.j.from,to:r.j.to,r:r.j.kind==='rollback'?'rb':'ok',by,rep:S.wms!=='none'});
+   it.cur=r.j.to;it.downloaded=false;
+   if(r.j.kind==='rollback'){it.next=it.versions[0][0];it.skipped=true}else it.next=null;
+   if(it.impact==='restart'&&!servicing)it.restartPending=true;S.sel.delete(it.id);
+   if(S.scheduled){S.scheduled.ids=S.scheduled.ids.filter(x=>x!==it.id);if(!S.scheduled.ids.length)S.scheduled=null}}
+  else if(r.st==='fail')S.history.unshift({d:new Date(),name:it.name,from:r.j.from,to:r.j.to,r:'fail',err:'1603 – fatal error during installation, rolled back',by,rep:S.wms!=='none'})});
+ if(dlOnly)return;
+ const ok=res.filter(r=>r.st==='ok').length,bad=res.filter(r=>r.st==='fail').length;
+ if(ok||bad)notify(bad?`${ok} installed, ${bad} failed`:`${ok} update${ok>1?'s':''} installed`,res.map(r=>`${r.j.item.name} ${r.j.to}${r.st==='fail'?' (failed)':''}`).join(', '),'updates')}
+
+async function progressRun(jobs,by,{dlOnly=false,autoRestart=false}={}){
+ S.modal={type:'progress',locked:true};S.drawer=null;render();
+ $('#modal').classList.add('show');$('#modal').innerHTML=dlg(dlOnly?'Downloading updates':`Installing ${jobs.length} update${jobs.length>1?'s':''}`,'Packages are installed silently. You can keep working; apps being updated will be closed.',
+  `<div style="margin-bottom:14px"><div id="ov-t" style="font-size:13px;margin-bottom:8px">Preparing…</div><div class="bar big"><i id="ov-bar"></i></div></div>`+jobRows(jobs),
+  `<span class="grow">Cancel is available while downloading.</span><button class="btn" id="pg-cancel" data-act="pgCancel">Cancel</button>`,true);
+ const res=await runJobs(jobs,{dlOnly});await sleep(400);
+ finishJobs(res,by,{dlOnly});
+ S.modal={type:'result',res,dl:dlOnly};
+ if(autoRestart&&restartPending().length&&!dlOnly){S.modal.countdown=5;const m=S.modal;const t=setInterval(()=>{if(S.modal!==m){clearInterval(t);return}m.countdown--;if(m.countdown<=0){clearInterval(t);restartDevice()}else renderModal()},1000)}
+ render()}
+
+/* ---- Fullscreen sequences ---- */
+const ov=$('#overlay');
+async function boot(text,ms,logo=true){ov.classList.add('show');ov.innerHTML=`<div class="boot">${logo?dellLogo(true):''}<span class="spinner"></span><div class="boot-t">${text}</div></div>`;await sleep(ms)}
+function ovHide(){ov.classList.remove('show');ov.innerHTML=''}
+const setStep=(k,st)=>{const e=document.getElementById('sv'+k);if(!e)return;e.dataset.st=st;e.querySelector('.sic').innerHTML=st==='done'?ic('check',16,2.2):st==='run'?spin():ic('clock',14)};
+
+async function servicing(jobs,by){
+ S.modal=null;S.drawer=null;S.notifOpen=false;render();
+ await boot('Restarting into UWF Servicing Mode…',1800);
+ const steps=['Restarted into servicing mode','Write Filter temporarily disabled · overlay cleared','Installing updates','Committing changes and re-enabling Write Filter','Restarting device'];
+ ov.innerHTML=`<div class="svc"><div class="svc-box">${dellLogo(false)}<h2>Servicing in progress</h2><div class="lead">Do not turn off your device. It is locked until servicing completes and will restart automatically.</div>
+  <ul class="svc-steps">${steps.map((s,k)=>`<li id="sv${k}" data-st="wait"><span class="sic">${ic('clock',14)}</span>${s}</li>`).join('')}</ul>
+  <div style="margin-bottom:12px"><div id="ov-t" style="font-size:13px;margin-bottom:8px;color:#cfd9e6">Preparing…</div><div class="bar big"><i id="ov-bar"></i></div></div>${jobRows(jobs)}</div></div>`;
+ setStep(0,'run');await sleep(700);setStep(0,'done');setStep(1,'run');await sleep(900);setStep(1,'done');setStep(2,'run');
+ const res=await runJobs(jobs,{servicing:true});
+ setStep(2,'done');setStep(3,'run');await sleep(1400);setStep(3,'done');setStep(4,'run');await sleep(900);
+ await boot('Restarting…',1400,false);await boot('',1300);
+ ovHide();finishJobs(res,by,{servicing:true});
+ S.win='open';S.view='updates';S.tab='available';S.modal={type:'result',res,servicing:true};render();
+ const bad=res.filter(r=>r.st==='fail').length;
+ osToast(bad?'Some updates failed':'Updates installed',bad?`${bad} update failed during servicing. Open DACC to retry.`:`${res.length} update${res.length>1?'s':''} installed in UWF Servicing Mode. Write Filter is ON.`)}
+
+async function restartDevice(){
+ S.modal=null;S.drawer=null;S.notifOpen=false;render();
+ await boot('Restarting…',1500,false);
+ const rp=restartPending();rp.forEach(i=>i.restartPending=false);
+ const wfChanged=S.wfPending!==null,back=S.view;
+ if(wfChanged){S.wf=S.wfPending;S.wfPending=null}
+ await boot('',1400);ovHide();S.win='closed';render();syncProto();
+ if(rp.length)osToast('Updates finished installing',`${rp.map(i=>i.name).join(', ')} ${rp.length>1?'are':'is'} up to date.${S.wf?'':' Remember to turn the Write Filter back ON.'}`);
+ else if(wfChanged&&!S.wf&&back==='updates'){openDACC('updates');toast('Write Filter is OFF. You can now install updates.')}
+ else osToast('Dell Application Control Center',`Write Filter is ${S.wf?'ON':'OFF'}.`)}
+
+async function reimageRun(){
+ const img=S.os.images.find(x=>x.id===S.modal.img),m=S.modal;const job={item:{name:img.label,size:img.size,downloaded:false,impact:'reimage'},to:'',from:S.os.cur.label,kind:'image'};
+ S.modal={type:'progress',locked:true};render();
+ $('#modal').classList.add('show');$('#modal').innerHTML=dlg('Preparing reimage',img.label,`<div style="margin-bottom:14px"><div id="ov-t" style="font-size:13px;margin-bottom:8px">Preparing…</div><div class="bar big"><i id="ov-bar"></i></div></div>`+jobRows([job]),`<button class="btn" id="pg-cancel" data-act="pgCancel">Cancel</button>`,true);
+ S.cancel=false;
+ for(let p=0;p<=40;p++){if(S.cancel)break;setRow(0,'dl',p*2.5,`Downloading… ${fmtMB(img.size*p/40)} of ${fmtMB(img.size)}`);setOverall(p*2.5*.8,'Downloading image');await sleep(80)}
+ if(S.cancel){S.modal=null;render();toast('Reimage cancelled. Nothing was changed.','info');return}
+ setCancel(false);setRow(0,'verify',100,'Verifying SHA-256…');setOverall(85,'Verifying');await sleep(800);
+ setRow(0,'verify',100,'Staging image to recovery partition…');setOverall(95,'Staging');await sleep(1000);
+ S.modal=null;render();
+ await boot('Restarting into Dell OS Recovery…',1800);
+ const phases=[[0,'Erasing system partition'],[12,'Applying '+img.label],[70,'Installing drivers for '+DEVICE.model],[85,'Restoring retained settings'],[95,'Finalizing']];
+ ov.innerHTML=`<div class="svc"><div class="svc-box">${dellLogo(false)}<h2>Dell OS Recovery</h2><div class="lead">Reimaging this device. Do not turn off power.</div>
+  <div id="ov-t" style="font-size:14px;margin-bottom:10px">Starting…</div><div class="bar big"><i id="ov-bar"></i></div><div id="ri-pct" style="font-size:12px;color:#9fb0c5;margin-top:8px">0%</div>
+  <ul class="svc-steps" style="margin-top:18px">${[m.keepWms&&S.wms!=='none'?'WMS registration':'',m.keepDacc?'DACC configuration':'',m.keepNet?'Network & Wi‑Fi profiles':''].filter(Boolean).map(x=>`<li data-st="wait"><span class="sic">${ic('shield',14)}</span>Retaining: ${x}</li>`).join('')}</ul></div></div>`;
+ for(let p=0;p<=100;p++){const ph=[...phases].reverse().find(x=>p>=x[0]);setOverall(p,ph[1]);const e=document.getElementById('ri-pct');if(e)e.textContent=p+'%';await sleep(65)}
+ await boot('Getting things ready…',1800);ovHide();
+ const prev=S.os.cur.label;S.os.cur={id:img.id,label:img.label,build:img.build,date:fmtD(new Date().toISOString().slice(0,10)),by:'Local · DACC'};
+ Object.entries(img.includes).forEach(([id,v])=>{const it=item(id);if(it&&it.versions.findIndex(x=>x[0]===v)<=it.versions.findIndex(x=>x[0]===it.cur)){it.cur=v;if(it.next===v)it.next=null}});
+ S.history.unshift({d:new Date(),name:'OS image',from:prev,to:img.label,r:'ok',by:'Local · Admin',rep:S.wms!=='none'&&m.keepWms});
+ if(!m.keepWms)S.wms='none';S.wf=true;S.sel.clear();notify('Device reimaged',`${img.label} applied. Write Filter is ON.`,'updates');
+ S.win='closed';render();syncProto();
+ osToast('Reimage complete',`${img.label} is installed. ${m.keepWms&&S.wms!=='none'?'Device re-registered to WMS. ':''}Write Filter is ON.`)}
+
+/* ================= Render ================= */
+function render(){
+ const w=$('#win'),vis=S.win==='open'||S.win==='splash';
+ w.classList.toggle('hidden',!vis);w.classList.toggle('max',S.max);
+ $('#tb-dacc').classList.toggle('on',S.win!=='closed');$('#tb-dacc').classList.toggle('active',vis);
+ const sc=$('#app .scroll'),top=sc?sc.scrollTop:0,key=S.view+S.tab+S.cat;
+ $('#app').innerHTML=S.win==='splash'?vSplash():S.view==='home'?vHome():vUpdates();
+ const sc2=$('#app .scroll');if(sc2&&render.key===key)sc2.scrollTop=top;render.key=key;
+ if(S.focus&&S.win==='open'){const r=document.getElementById('row-'+S.focus);if(r&&sc2){sc2.scrollTop+=r.getBoundingClientRect().top-sc2.getBoundingClientRect().top-sc2.clientHeight/2+r.offsetHeight/2;r.classList.add('flash')}S.focus=null}
+ $('#drawer').innerHTML=S.win==='open'&&S.drawer?vDrawer():'';
+ $('#npanel').innerHTML=S.win==='open'&&S.notifOpen?vNotif():'';
+ if(!(S.modal&&S.modal.locked))renderModal();
+ const n=totalAvail();$('#tray-upd').innerHTML=`${ic('upd',18)}${n?`<span class="badge">${n}</span>`:''}`;
+ $('#tray-upd').title=n?`Dell: ${n} updates available`:'Dell: device up to date';
+ $('#tray-sys').innerHTML=`${ic(S.net==='offline'?'skip':'net',16)}${ic('vol',16)}${ic(S.ac?'plug':'batt',16)}`;
+}
+function renderModal(){const md=$('#modal');if(S.win!=='open'||!S.modal){md.classList.remove('show');md.innerHTML='';return}md.classList.add('show');md.innerHTML=vModal()}
+function syncProto(){const q=k=>document.querySelector(`[data-proto="${k}"]`);q('wf').value=S.wf?'1':'0';q('wms').value=S.wms;q('ac').value=S.ac?'1':'0';q('net').value=S.net;q('fail').checked=S.failNext}
+
+function toast(msg,kind='ok'){const t=document.createElement('div');t.className='atoast '+(kind==='ok'?'':kind);
+ t.innerHTML=`${ic(kind==='err'?'xc':kind==='info'?'info':'checkc',18)}<span>${msg}</span><button class="x">${ic('close',12)}</button>`;
+ t.querySelector('.x').onclick=()=>t.remove();$('#atoasts').appendChild(t);setTimeout(()=>t.remove(),4500)}
+function showUpdate(id){S.view='updates';S.tab='available';S.cat='all';S.impFilter='all';S.q='';const q=$('#q');if(q)q.value='';S.notifOpen=false;S.drawer=id;S.dsec='fixes';S.focus=id;render()}
+function osToast(title,body,btn='Open DACC',itemId){const t=document.createElement('div');t.className='ostoast';
+ t.innerHTML=`<div class="hd">${ic('gear',14)} Dell Application Control Center<button class="x">${ic('close',14)}</button></div><b>${title}</b><p>${body}</p><div class="acts"><button class="p">${btn}</button><button class="d">Dismiss</button></div>`;
+ t.querySelector('.x').onclick=t.querySelector('.d').onclick=()=>t.remove();
+ t.querySelector('.p').onclick=()=>{t.remove();openDACC('updates');if(itemId)showUpdate(itemId)};
+ $('#ostoasts').appendChild(t);setTimeout(()=>t.remove(),9000)}
+
+function openDACC(view){
+ if(view){S.view=view;if(view==='updates')S.tab='available'}
+ if(S.win==='open'||S.win==='min'){S.win='open';render();return}
+ S.win='splash';render();setTimeout(()=>{S.win='open';render()},1400)}
+
+/* ================= Actions ================= */
+const A={
+ go:d=>{S.view=d.view;S.drawer=null;S.notifOpen=false;if(d.view==='updates')S.tab='available';render()},
+ tab:d=>{S.tab=d.tab;S.drawer=null;render()},
+ cat:d=>{S.cat=d.cat;S.tab='available';S.view='updates';S.drawer=null;S.impFilter='all';render()},
+ impFilter:(d,e)=>{e.stopPropagation();S.impFilter=e.target.value;render()},
+ sel:(d,e)=>{e.stopPropagation();S.sel.has(d.id)?S.sel.delete(d.id):S.sel.add(d.id);render()},
+ selVisible:(d,e)=>{const isSec=S.cat==='security';const vis=avail().filter(i=>!i.skipped&&(isSec?i.imp==='crit':S.cat==='all'||i.cat===S.cat)).filter(i=>S.impFilter==='all'||i.imp===S.impFilter);const all=vis.every(i=>S.sel.has(i.id));vis.forEach(i=>all?S.sel.delete(i.id):S.sel.add(i.id));render()},
+ selCrit:()=>{S.sel=new Set(avail().filter(i=>i.imp==='crit').map(i=>i.id));render()},
+ selAll:()=>{S.sel=new Set(avail().map(i=>i.id));render()},
+ selNone:()=>{S.sel.clear();render()},
+ toggleSkipped:()=>{S.showSkipped=!S.showSkipped;render()},
+ details:d=>{S.drawer=d.id;S.dsec='fixes';S.notifOpen=false;render()},
+ closeDrawer:()=>{S.drawer=null;render()},
+ dsec:d=>{S.dsec=d.sec;render()},
+ skip:d=>{const i=item(d.id);i.skipped=true;S.sel.delete(i.id);S.drawer=null;render();toast(`${i.name} ${i.next} skipped. You'll be notified of the next version.`,'info')},
+ unskip:d=>{item(d.id).skipped=false;render()},
+ check:async()=>{if(S.net==='offline'){toast('Unable to reach the update source. Check the network connection.','err');return}
+  S.checking=true;render();await sleep(1800);S.checking=false;S.lastChecked=new Date();render();
+  const n=totalAvail();toast(n?`Catalog checked · ${n} update${n>1?'s':''} available`:'Your device is up to date.')},
+ install:()=>openPreflight(mkJobs([...S.sel]),'Install updates','Local · Admin'),
+ installOne:d=>openPreflight(mkJobs([d.id]),'Install update','Local · Admin'),
+ installAssigned:()=>openPreflight(mkJobs(avail().filter(i=>i.wms).map(i=>i.id)),'Install WMS-assigned updates','WMS · user-initiated'),
+ rollback:d=>{const i=item(d.id),idx=i.versions.findIndex(v=>v[0]===i.cur),prev=i.versions[idx+1];
+  openPreflight([{item:i,from:i.cur,to:prev[0],kind:'rollback'}],`Roll back ${i.name}`,'Local · Admin (rollback)')},
+ downloadOnly:()=>{if(S.net==='offline'){toast('No network connection.','err');return}const j=mkJobs([...S.sel]).filter(x=>!x.item.downloaded);if(!j.length){toast('Selected updates are already downloaded.','info');return}progressRun(j,'',{dlOnly:true})},
+ downloadOne:d=>{if(S.net==='offline'){toast('No network connection.','err');return}progressRun(mkJobs([d.id]),'',{dlOnly:true})},
+ schedule:()=>{S.modal={type:'schedule',ids:[...S.sel],when:'window',custom:'2026-11-21T02:00',prefetch:S.prefs.autoDl};render()},
+ schedGo:()=>{const m=S.modal;const when=m.when==='window'?windowLabel():fmtDT(new Date(m.custom));
+  S.scheduled={ids:m.ids,when,prefetch:m.prefetch&&S.net!=='offline'};if(S.scheduled.prefetch)m.ids.forEach(id=>item(id).downloaded=true);
+  S.sel.clear();S.modal=null;render();toast(`${m.ids.length} update${m.ids.length>1?'s':''} scheduled for ${when}.`)},
+ unschedule:()=>{S.scheduled=null;render();toast('Schedule cancelled.','info')},
+ mClose:()=>{S.modal=null;render()},
+ mopt:(d,e)=>{const m=S.modal;if(d.v!==undefined)m[d.k]=d.v;else m[d.k]=e.target.checked;renderModal()},
+ ack:(d,e)=>{S.modal.acks[d.k]=e.target.checked;renderModal()},
+ pfGo:()=>{const m=S.modal;if(S.wf){toast('Disable the Write Filter to install updates.','err');return}progressRun(m.jobs,m.by,{autoRestart:m.autoRestart})},
+ pgCancel:()=>{S.cancel=true;setCancel(false)},
+ retry:()=>{const f=S.modal.res.filter(r=>r.st==='fail').map(r=>r.j);openPreflight(f.map(j=>({...j,from:j.item.cur})),'Retry failed updates','Local · Admin (retry)')},
+ restart:()=>restartDevice(),
+ wfToggle:()=>{S.modal={type:'wf'};render()},
+ wfGo:()=>{S.wfPending=!S.wf;restartDevice()},
+ reimage:d=>{S.modal={type:'reimage',step:1,img:d.img,keepWms:S.wms!=='none',keepDacc:true,keepNet:true,tag:'',acks:{},shown:0};render()},
+ riNext:()=>{const m=S.modal;m.step++;if(m.step===3){const img=S.os.images.find(x=>x.id===m.img);m.checks=preflight([{size:img.size,impact:'restart'}],{reimage:true});m.acks={};renderModal();animateChecks()}else renderModal()},
+ riBack:()=>{S.modal.step--;renderModal()},
+ riGo:()=>reimageRun(),
+ notifs:()=>{S.notifOpen=!S.notifOpen;S.drawer=null;render()},
+ nRead:()=>{S.notifs.forEach(n=>n.unread=false);render()},
+ nDel:()=>{S.notifs=[];render()},
+ nX:d=>{S.notifs=S.notifs.filter(n=>n.id!=d.id);render()},
+ nGo:d=>{const n=S.notifs.find(x=>x.id==d.id);n.unread=false;S.notifOpen=false;if(n.item&&item(n.item)&&item(n.item).next)return showUpdate(n.item);S.view='updates';S.tab='available';S.cat=n.act==='os'?'os':'all';render()},
+ prefTg:d=>{S.prefs[d.k]=!S.prefs[d.k];render()},
+ prefSave:()=>toast(S.wms==='none'?'Preferences saved.':'Preferences saved and reported to WMS.'),
+ prefReset:()=>{S.prefs=seed().prefs;render();toast('Preferences restored to defaults.','info')},
+ exportLogs:()=>toast(`Logs exported to C:\\ProgramData\\Dell\\OTA\\Logs\\ota_${DEVICE.tag}_20261120.zip`),
+ settings:()=>{S.view='updates';S.tab='prefs';S.drawer=null;render()},
+ na:()=>toast('Not part of the OTA prototype — existing DACC module.','info'),
+ winMin:()=>{S.win='min';render()},
+ winMax:()=>{S.max=!S.max;render()},
+ winClose:()=>{if(S.modal&&S.modal.locked){toast('Installation in progress. DACC will close when it finishes.','info');return}S.win='closed';S.modal=null;S.drawer=null;S.notifOpen=false;render()},
+ tbDacc:()=>{if(S.win==='open')S.win='min';else if(S.win==='min')S.win='open';render()},
+ osOpen:()=>openDACC('updates'),
+ protoToggle:()=>{$('#proto').classList.toggle('col');$('#proto-car').innerHTML=$('#proto').classList.contains('col')?'&#9656;':'&#9662;'},
+ push:()=>{const pool=[['edge','148.0.3967.20','CVE-2026-51102 (V8 type confusion)'],['bios','1.26.0','CVE-2026-51234 (SMM privilege escalation)'],['kb5048621','26100.6621','CVE-2026-51377 (Windows Kernel elevation of privilege)'],['ctx','2609.1','CVE-2026-51410 (HDX remote code execution)'],['intelwifi','23.95.0.1','CVE-2026-51522 (Wi‑Fi driver remote code execution)'],['dda','17.0.1.0','CVE-2026-51618 (agent IPC privilege escalation)']];
+  S.pushIdx=((S.pushIdx??-1)+1)%pool.length;const [id,v,cve]=pool[S.pushIdx],e=item(id);
+  if(e.versions[0][0]!==v)e.versions.unshift([v,'2026-11-20']);
+  e.next=v;e.imp='crit';e.date='2026-11-20';e.skipped=false;e.downloaded=false;e.wms=true;
+  e.fixes=[`Urgent security update: fixes ${cve} — actively exploited`,...e.fixes.filter(f=>!f.startsWith('Urgent security'))];
+  S.lastChecked=new Date();notify('Urgent security update available',`${e.name} ${v} fixes an actively exploited vulnerability (${cve.split(' ')[0]}). Install as soon as possible.`,'updates',id);render();
+  osToast('Urgent security update available',`${e.name} ${v} fixes an actively exploited vulnerability.`,'View update',id)},
+ runWindow:async()=>{let ids,by;
+  if(managed()){ids=avail().filter(i=>i.wms).map(i=>i.id);by='WMS · Scheduled'}
+  else if(S.scheduled){ids=S.scheduled.ids;by='Local · Scheduled'}
+  else if(S.prefs.auto!=='off'){const ok={crit:['crit'],critrec:['crit','rec'],all:['crit','rec','opt']}[S.prefs.auto];ids=avail().filter(i=>ok.includes(i.imp)&&(i.policy||'notify')!=='manual').map(i=>i.id);by='Local · Automatic'}
+  if(!ids||!ids.length){toast('Nothing is scheduled for the maintenance window.','info');if(S.win!=='open')osToast('Maintenance window','Nothing scheduled to install.');return}
+  if(S.net==='offline'&&mkJobs(ids).some(j=>!j.item.downloaded)){osToast('Maintenance window skipped','No network connection. Updates will retry in the next window.');return}
+  const jobs=mkJobs(ids);
+  if(S.wf){osToast('Maintenance window skipped',`Write Filter is ON. ${jobs.length} update${jobs.length>1?'s were':' was'} not installed — disable the Write Filter to apply updates.`);return}
+  osToast('Installing updates',`Installing ${jobs.length} update${jobs.length>1?'s':''} in the maintenance window…`);
+  const res=await runJobs(jobs);finishJobs(res,by);render();
+  if(restartPending().length&&(S.prefs.restart==='auto'||managed()))return restartDevice();
+  osToast(restartPending().length?'Restart required':'Updates installed',restartPending().length?'Restart to finish installing updates.':`${res.filter(r=>r.st==='ok').length} update(s) installed.`)},
+ reset:()=>{S=seed();ovHide();$('#ostoasts').innerHTML='';syncProto();openDACC('home')}
+};
+
+document.addEventListener('click',e=>{const a=e.target.closest('[data-act]');if(!a||a.disabled)return;const f=A[a.dataset.act];if(f){if(a.tagName!=='INPUT')e.preventDefault();f(a.dataset,e)}});
+document.addEventListener('change',e=>{const t=e.target;
+ if(t.id==='impFilterSelect'){S.impFilter=t.value;render()}
+ else if(t.dataset.pref){S.prefs[t.dataset.pref]=t.value;render()}
+ else if(t.dataset.pol){item(t.dataset.pol).policy=t.value;toast(`${item(t.dataset.pol).name}: update policy set to “${t.options[t.selectedIndex].text}”.`)}
+ else if(t.dataset.mf==='custom'){S.modal.custom=t.value}
+ else if(t.dataset.proto){const k=t.dataset.proto;
+  if(k==='wf')S.wf=t.value==='1';if(k==='ac')S.ac=t.value==='1';if(k==='net')S.net=t.value;if(k==='fail')S.failNext=t.checked;
+  if(k==='wms'){S.wms=t.value;if(S.wms==='none'&&S.prefs.source==='wms')S.prefs.source='dell';S.sel.clear()}
+  render()}});
+document.addEventListener('input',e=>{const t=e.target;
+ if(t.dataset.mf==='tag'){S.modal.tag=t.value;const b=$('#riGo');if(b)b.disabled=t.value.trim().toUpperCase()!==DEVICE.tag}
+ if(t.id==='q'){S.q=t.value;if(S.view!=='updates'){S.view='updates';S.tab='available'}S.drawer=null;render()}});
+document.addEventListener('dblclick',e=>{if(e.target.closest('[data-dbl]'))openDACC('home')});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(S.modal&&!S.modal.locked)S.modal=null;else if(S.drawer)S.drawer=null;else if(S.notifOpen)S.notifOpen=false;render()}});
+
+/* Window dragging */
+(()=>{const w=$('#win'),tb=$('#titlebar');let dx,dy,drag=false;
+ tb.addEventListener('mousedown',e=>{if(S.max||e.target.closest('button,input'))return;const r=w.getBoundingClientRect();w.style.transform='none';w.style.left=r.left+'px';w.style.top=r.top+'px';dx=e.clientX-r.left;dy=e.clientY-r.top;drag=true});
+ window.addEventListener('mousemove',e=>{if(!drag)return;w.style.left=Math.max(-w.offsetWidth+120,Math.min(innerWidth-120,e.clientX-dx))+'px';w.style.top=Math.max(0,Math.min(innerHeight-90,e.clientY-dy))+'px'});
+ window.addEventListener('mouseup',()=>drag=false);
+ tb.addEventListener('dblclick',e=>{if(!e.target.closest('button,input'))A.winMax()})})();
+
+/* Static chrome */
+$('#tsearch').innerHTML=`${ic('search',14)}<input id="q" placeholder="Search updates" autocomplete="off">`;
+$('#tb-gear').innerHTML=ic('gear',15);$('#tb-min').innerHTML=ic('min',15);$('#tb-max').innerHTML=ic('max',13);$('#tb-close').innerHTML=ic('close',15);
+$('#di-dacc').innerHTML=`<span style="color:#5fb0f5">${ic('gear',26)}</span>`;$('#di-bin').innerHTML=ic('logs',26);
+$('#tb-start').innerHTML=`<svg width="20" height="20" viewBox="0 0 20 20"><rect width="9.2" height="9.2" fill="#0a7ee6"/><rect x="10.8" width="9.2" height="9.2" fill="#0a7ee6"/><rect y="10.8" width="9.2" height="9.2" fill="#0a7ee6"/><rect x="10.8" y="10.8" width="9.2" height="9.2" fill="#0a7ee6"/></svg>`;
+$('#tb-search').innerHTML=ic('search',20,2);
+$('#tb-files').innerHTML=`<svg width="22" height="22" viewBox="0 0 24 24"><path d="M2 6a2 2 0 0 1 2-2h5l2 2h9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z" fill="#f5c443"/><path d="M2 9h20v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z" fill="#ffd866"/></svg>`;
+$('#tb-edge').innerHTML=`<svg width="22" height="22" viewBox="0 0 24 24"><defs><linearGradient id="eg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#35c1f1"/><stop offset="1" stop-color="#0c59a4"/></linearGradient></defs><circle cx="12" cy="12" r="10" fill="url(#eg)"/><path d="M7 13c0-3 2.5-5 5.5-5S18 10 18 12.5H9.5c.3 2 2 3.3 4.3 3.3 1.5 0 2.9-.5 4-1.2-.9 2.8-3.4 4.4-6.2 4.4-2.6 0-4.6-2.3-4.6-6z" fill="#7be08e" opacity=".9"/></svg>`;
+$('#tb-dacc').innerHTML=`<span style="color:#0a6fc2">${ic('gear',20)}</span>`;
+const tick=()=>{const d=new Date();$('#clock').innerHTML=`${fmtT(d)}<br>${d.getMonth()+1}/${d.getDate()}/${d.getFullYear()}`};tick();setInterval(tick,15000);
+
+/* Boot */
+syncProto();render();
+setTimeout(()=>openDACC('home'),400);
+setTimeout(()=>osToast('9 updates available','3 critical security updates are ready for this device (Microsoft Edge, Citrix Workspace, Omnissa Horizon Client).','View updates'),2600);
+</script>
+<div id="dm-root"></div>
+<script>
+/* ================= Dev Mode: inspector, layers, assets, tokens, screens ================= */
+(()=>{
+const DM_VER='2026.11.25',LSK='dacc-devmode-v1';
+const root=document.getElementById('dm-root');
+root.innerHTML='<div id="dm-ov"></div><div id="dm-ui"></div><div id="dm-tmp"></div>';
+const OV=root.querySelector('#dm-ov'),UI=root.querySelector('#dm-ui'),TMP=root.querySelector('#dm-tmp');
+const h=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const inDev=n=>{const e=n&&(n.nodeType===1?n:n.parentElement);return !!(e&&e.closest&&e.closest('#dm-root'))};
+const D={on:true,inspect:true,outline:false,unit:'px',cf:'hex',tab:'inspect',asset:'colors',code:'css',scope:'win',col:{},dock:'right',fx:null,fy:70,fw:400,fh:640,min:false,ghost:false};
+try{Object.assign(D,JSON.parse(localStorage.getItem(LSK)||'{}'))}catch(_){}
+Object.assign(D,{q:'',icon:null,sel:null,selPath:'',selCls:'',lost:false,stale:false,hover:null,hoverFromPanel:false,open:new Set(),hl:[],hlUntil:0,cyc:{},scan:null,scrollLayer:false});
+const save=()=>{try{localStorage.setItem(LSK,JSON.stringify({on:D.on,inspect:D.inspect,outline:D.outline,unit:D.unit,cf:D.cf,tab:D.tab,asset:D.asset,code:D.code,scope:D.scope,col:D.col,dock:D.dock,fx:D.fx,fy:D.fy,fw:D.fw,fh:D.fh,min:D.min,ghost:D.ghost}))}catch(_){}};
+
+/* ---------- colors & units ---------- */
+function parseC(s){const m=String(s||'').match(/rgba?\(([^)]+)\)/);if(!m)return null;const p=m[1].split(/[\s,\/]+/).filter(Boolean).map(parseFloat);
+ return {r:Math.round(p[0]),g:Math.round(p[1]),b:Math.round(p[2]),a:p.length>3?p[3]:1}}
+const hx=n=>Math.round(Math.max(0,Math.min(255,n))).toString(16).padStart(2,'0').toUpperCase();
+const toHex=c=>'#'+hx(c.r)+hx(c.g)+hx(c.b)+(c.a<1?hx(c.a*255):'');
+function toHsl({r,g,b,a}){r/=255;g/=255;b/=255;const mx=Math.max(r,g,b),mn=Math.min(r,g,b),l=(mx+mn)/2;let H=0,S2=0;
+ if(mx!==mn){const d=mx-mn;S2=l>.5?d/(2-mx-mn):d/(mx+mn);H=(mx===r?(g-b)/d+(g<b?6:0):mx===g?(b-r)/d+2:(r-g)/d+4)*60}
+ const t=`${Math.round(H)}, ${Math.round(S2*100)}%, ${Math.round(l*100)}%`;return a<1?`hsla(${t}, ${+(+a).toFixed(2)})`:`hsl(${t})`}
+const rgbS=c=>c.a<1?`rgba(${c.r}, ${c.g}, ${c.b}, ${+(+c.a).toFixed(2)})`:`rgb(${c.r}, ${c.g}, ${c.b})`;
+const fc=c=>!c?'':D.cf==='hex'?toHex(c):D.cf==='hsl'?toHsl(c):rgbS(c);
+const alt=c=>D.cf==='hex'?rgbS(c):toHex(c);
+const fcs=s=>String(s).replace(/rgba?\([^)]*\)/g,m=>fc(parseC(m)));
+const cssC=c=>c?`rgba(${c.r},${c.g},${c.b},${c.a})`:'transparent';
+const r2=n=>Math.round(n*100)/100;
+const px=n=>D.unit==='rem'?`${r2(n/16)}rem`:`${r2(n)}px`;
+const fu=s=>String(s).replace(/(-?\d*\.?\d+)px/g,(_,n)=>px(parseFloat(n)));
+const fv=s=>fcs(fu(s));
+
+/* ---------- fonts, text, contrast ---------- */
+const WN={100:'Thin',200:'Extra Light',300:'Light',400:'Regular',500:'Medium',600:'Semi Bold',700:'Bold',800:'Extra Bold',900:'Black'};
+const wn=w=>WN[Math.round(+w/100)*100]||'';
+const GEN=/^(serif|sans-serif|monospace|system-ui|cursive|fantasy|math|emoji|-apple-system|ui-[\w-]+)$/i,FCACHE={};
+function fontOK(f){f=f.replace(/["']/g,'').trim();if(GEN.test(f))return true;if(f in FCACHE)return FCACHE[f];
+ const c=document.createElement('canvas').getContext('2d'),t='mmmmmmmmmmlli1WQ@#';let ok=false;
+ for(const b of ['monospace','serif']){c.font=`72px ${b}`;const w=c.measureText(t).width;c.font=`72px "${f}", ${b}`;if(c.measureText(t).width!==w){ok=true;break}}
+ return FCACHE[f]=ok}
+function rFont(stack){const p=String(stack).split(',').map(x=>x.replace(/["']/g,'').trim());return p.find(fontOK)||p[0]}
+const ownText=el=>[...el.childNodes].some(n=>n.nodeType===3&&n.textContent.trim());
+const textOf=el=>[...el.childNodes].filter(n=>n.nodeType===3).map(n=>n.textContent).join(' ').replace(/\s+/g,' ').trim();
+const isText=el=>ownText(el)||/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName);
+function effBg(el){const L=[];let approx=false;
+ for(let x=el;x&&x.nodeType===1;x=x.parentElement){const cs=getComputedStyle(x),c=parseC(cs.backgroundColor);
+  if(c&&c.a>0){L.push(c);if(c.a>=1)break}
+  else if(cs.backgroundImage!=='none'){const m=cs.backgroundImage.match(/rgba?\([^)]*\)/);if(m){L.push({...parseC(m[0]),a:1});approx=true;break}}}
+ let b={r:255,g:255,b:255};for(let i=L.length-1;i>=0;i--){const l=L[i];b={r:l.r*l.a+b.r*(1-l.a),g:l.g*l.a+b.g*(1-l.a),b:l.b*l.a+b.b*(1-l.a)}}
+ return {c:{r:Math.round(b.r),g:Math.round(b.g),b:Math.round(b.b),a:1},approx}}
+const lum=c=>{const f=v=>{v/=255;return v<=.03928?v/12.92:((v+.055)/1.055)**2.4};return .2126*f(c.r)+.7152*f(c.g)+.0722*f(c.b)};
+function contrast(fg,bg){const f={r:fg.r*fg.a+bg.r*(1-fg.a),g:fg.g*fg.a+bg.g*(1-fg.a),b:fg.b*fg.a+bg.b*(1-fg.a)},a=lum(f),b=lum(bg);return (Math.max(a,b)+.05)/(Math.min(a,b)+.05)}
+
+/* ---------- icons ---------- */
+let ICM=null;
+function iconName(svg){if(!ICM){ICM={};Object.keys(I).forEach(n=>{const t=document.createElementNS('http://www.w3.org/2000/svg','svg');t.innerHTML=I[n];const k=t.innerHTML.replace(/\s+/g,' ');if(!(k in ICM))ICM[k]=n})}
+ return ICM[svg.innerHTML.replace(/\s+/g,' ')]||null}
+const iconSVG=(n,s=24)=>`<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${I[n]}</svg>`;
+const svgFile=svg=>{const c=svg.cloneNode(true);c.setAttribute('xmlns','http://www.w3.org/2000/svg');c.removeAttribute('class');return c.outerHTML};
+const appIcons=()=>[...document.querySelectorAll('svg.ic')].filter(s=>!inDev(s)&&vis(s));
+const iconEls=n=>appIcons().filter(s=>iconName(s)===n);
+function iconUse(){const u={};appIcons().forEach(s=>{const n=iconName(s);if(n)u[n]=(u[n]||0)+1});return u}
+const sprite=()=>`<svg xmlns="http://www.w3.org/2000/svg" style="display:none">\n${Object.keys(I).map(n=>`  <symbol id="ic-${n}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${I[n]}</symbol>`).join('\n')}\n</svg>\n<!-- Usage: <svg width="16" height="16"><use href="#ic-NAME"/></svg> -->\n`;
+
+/* ---------- component catalog ---------- */
+const COMP=[
+ ['Window','#win','Shell'],['Title bar','.titlebar','Shell'],['Title bar button','.tbtn','Shell'],['Search field','.tsearch','Shell'],['Admin badge','.admin','Shell'],
+ ['Feature tile','.tile','Home'],['Feature icon','.feat-ic','Home'],['Utility button','.util','Home'],['Info card','.mini','Home'],['Key / value list','.kv','Home'],['Eyebrow label','.eyebrow','Home'],['Device title','.device','Home'],['Notification link','.notif-link','Home'],['Count dot','.ndot','Home'],
+ ['Button','.btn','Controls'],['Link button','.link','Controls'],['Back button','.back','Controls'],['Toggle','.tg','Controls'],['Toggle with label','.tgw','Controls'],['Select','.sel','Controls'],['Text input','.inp','Controls'],['Pill','.pill','Controls'],
+ ['Page header','.page-head','Layout'],['Status bar','.status','Layout'],['Banner','.banner','Layout'],['Sticky footer bar','.footer-bar','Layout'],
+ ['Tabs','.tabs','Navigation'],['Tab','.tab','Navigation'],['Category list','.cats','Navigation'],['Category item','.cat','Navigation'],
+ ['Data table','table.grid','Data display'],['Importance chip','.chip','Data display'],['Post-install badge','.imp','Data display'],['Tag pill','.tagp','Data display'],['Meta tag','.mtag','Data display'],['Status dot','.sdot','Data display'],['Progress bar','.bar','Data display'],['Spinner','.spinner','Data display'],['Empty state','.empty','Data display'],
+ ['OS image card','.oscard','Updates'],['Image row','.img-row','Updates'],['Preference section','.pref-sec','Updates'],['Preference row','.prow','Updates'],
+ ['Details drawer','.drawer','Overlays'],['Notification panel','.npanel','Overlays'],['Notification item','.nitem','Overlays'],['Dialog','.dialog','Overlays'],['Pre-install check','.ck','Overlays'],['Job row','.jr','Overlays'],['Section title','.sec-t','Overlays'],['App toast','.atoast','Overlays'],
+ ['Taskbar','#taskbar','Desktop'],['Taskbar button','.tb-btn','Desktop'],['Tray item','.tray','Desktop'],['Desktop icon','.desk-icon','Desktop'],['Windows toast','.ostoast','Desktop'],
+ ['Icon','svg.ic','Icons']];
+function compOf(el){for(const c of COMP){try{if(el.matches(c[1]))return c}catch(_){}}return null}
+function nameOf(el){if(!el||el.nodeType!==1)return '';const c=compOf(el);if(c)return c[0];if(el.tagName.toLowerCase()==='svg')return 'Vector';if(el.id)return '#'+el.id;const cl=[...el.classList][0];return cl?'.'+cl:el.tagName.toLowerCase()}
+const tagOf=el=>el.tagName.toLowerCase()+(el.id?'#'+el.id:'')+[...el.classList].slice(0,3).map(c=>'.'+c).join('');
+const selShort=el=>el.classList.length?'.'+[...el.classList][0]:el.id?'#'+el.id:el.tagName.toLowerCase();
+function nth(el){let i=1,x=el;while((x=x.previousElementSibling))if(x.tagName===el.tagName)i++;return i}
+function pathOf(el){const p=[];while(el&&el.nodeType===1&&el!==document.body){if(el.id){p.unshift('#'+CSS.escape(el.id));break}p.unshift(el.tagName.toLowerCase()+`:nth-of-type(${nth(el)})`);el=el.parentElement}return p.join(' > ')}
+const q1=s=>{try{return s?document.querySelector(s):null}catch(_){return null}};
+const vis=el=>{const r=el.getBoundingClientRect();return r.width>0&&r.height>0};
+const visList=sel=>[...document.querySelectorAll(sel)].filter(e=>!inDev(e)&&vis(e));
+
+/* ---------- specs ---------- */
+function box4(cs,p){const v=['Top','Right','Bottom','Left'].map(s=>parseFloat(cs[p+s])||0);if(v.every(x=>x===0))return '0';const f=v.map(px);
+ return v[0]===v[2]&&v[1]===v[3]?(v[0]===v[1]?f[0]:`${f[0]} ${f[1]}`):f.join(' ')}
+function radius(cs){const v=['TopLeft','TopRight','BottomRight','BottomLeft'].map(k=>cs['border'+k+'Radius']);if(v.every(x=>parseFloat(x)===0))return null;return v.every(x=>x===v[0])?fu(v[0]):v.map(fu).join(' ')}
+function borderInfo(cs){const sides=['Top','Right','Bottom','Left'].map(s=>({s,w:parseFloat(cs['border'+s+'Width'])||0,st:cs['border'+s+'Style'],c:parseC(cs['border'+s+'Color'])})).filter(x=>x.w>0&&x.st!=='none');
+ const k=x=>x.c?toHex(x.c):'';return {sides,uni:sides.length===4&&sides.every(x=>x.w===sides[0].w&&x.st===sides[0].st&&k(x)===k(sides[0]))}}
+const flexy=d=>d.includes('flex')||d.includes('grid');
+const hasGap=g=>!/^(normal|0px)( (normal|0px))?$/.test(g);
+function spec(el){const cs=getComputedStyle(el),r=el.getBoundingClientRect(),secs=[],tag=el.tagName.toLowerCase();
+ const win=document.getElementById('win'),inWin=win&&win!==el&&win.contains(el),ref=inWin?win.getBoundingClientRect():{left:0,top:0};
+ const L=[['Width',px(r.width)],['Height',px(r.height)],[inWin?'X · in window':'X',px(r.left-ref.left)],[inWin?'Y · in window':'Y',px(r.top-ref.top)],['Display',cs.display]],d=cs.display;
+ if(cs.position!=='static')L.push(['Position',cs.position]);
+ if(d.includes('flex')){L.push(['Direction',cs.flexDirection]);if(cs.flexWrap!=='nowrap')L.push(['Wrap',cs.flexWrap]);L.push(['Justify',cs.justifyContent],['Align items',cs.alignItems])}
+ if(d.includes('grid')){L.push(['Columns',fu(cs.gridTemplateColumns)]);if(cs.gridTemplateRows!=='none')L.push(['Rows',fu(cs.gridTemplateRows)])}
+ if(flexy(d)&&hasGap(cs.gap))L.push(['Gap',fu(cs.gap)]);
+ const pd=el.parentElement&&getComputedStyle(el.parentElement).display;
+ if(pd&&pd.includes('flex')){const fl=`${cs.flexGrow} ${cs.flexShrink} ${fu(cs.flexBasis)}`;if(fl!=='0 1 auto')L.push(['Flex',fl]);if(cs.alignSelf!=='auto')L.push(['Align self',cs.alignSelf])}
+ L.push(['Padding',box4(cs,'padding')],['Margin',box4(cs,'margin')]);
+ if(cs.boxSizing!=='border-box')L.push(['Box sizing',cs.boxSizing]);
+ if(cs.overflow!=='visible')L.push(['Overflow',cs.overflow]);
+ if(cs.zIndex!=='auto')L.push(['Z-index',cs.zIndex]);
+ secs.push({t:'Layout',rows:L,bm:true});
+ if(isText(el)){const T=[],fam=rFont(cs.fontFamily),first=cs.fontFamily.split(',')[0].replace(/["']/g,'').trim(),fs=parseFloat(cs.fontSize),lh=cs.lineHeight;
+  T.push(['Font',fam,{note:fam!==first?`fallback · “${first}” not installed`:''}],['Font stack',cs.fontFamily],['Weight',`${cs.fontWeight} · ${wn(cs.fontWeight)}`],['Size',px(fs)],
+   ['Line height',lh==='normal'?'normal':`${px(parseFloat(lh))} · ${r2(parseFloat(lh)/fs)}`]);
+  if(cs.letterSpacing!=='normal')T.push(['Letter spacing',fu(cs.letterSpacing)]);
+  if(cs.textTransform!=='none')T.push(['Transform',cs.textTransform]);
+  if(!/^(start|left)$/.test(cs.textAlign))T.push(['Align',cs.textAlign]);
+  if(cs.fontStyle!=='normal')T.push(['Style',cs.fontStyle]);
+  if(!cs.textDecorationLine.startsWith('none'))T.push(['Decoration',cs.textDecorationLine]);
+  if(cs.whiteSpace!=='normal')T.push(['White space',cs.whiteSpace]);
+  const c=parseC(cs.color);T.push(['Color',fc(c),{sw:c}]);
+  const tx=/^(INPUT|TEXTAREA)$/.test(el.tagName)?(el.value||el.placeholder||''):textOf(el);if(tx)T.push(['Content',tx.length>140?tx.slice(0,140)+'…':tx,{copy:tx}]);
+  secs.push({t:'Typography',rows:T})}
+ const Fi=[],bg=parseC(cs.backgroundColor);
+ if(bg&&bg.a>0)Fi.push(['Background',fc(bg),{sw:bg}]);
+ if(cs.backgroundImage!=='none')Fi.push(['Image',fcs(cs.backgroundImage),{grad:cs.backgroundImage}]);
+ if(cs.opacity!=='1')Fi.push(['Opacity',`${r2(cs.opacity*100)}%`]);
+ if(tag==='svg'){const cc=parseC(cs.color);['stroke','fill'].forEach(a=>{const v=el.getAttribute(a);if(v&&v!=='none')Fi.push([a[0].toUpperCase()+a.slice(1),v==='currentColor'?`currentColor → ${fc(cc)}`:v,{sw:v==='currentColor'?cc:null}])})}
+ if(Fi.length)secs.push({t:'Fill',rows:Fi});
+ const bi=borderInfo(cs);
+ if(bi.sides.length){const B=[];if(bi.uni){const s=bi.sides[0];B.push(['Border',`${px(s.w)} ${s.st}`],['Color',fc(s.c),{sw:s.c}])}
+  else bi.sides.forEach(s=>B.push([s.s,`${px(s.w)} ${s.st} ${fc(s.c)}`,{sw:s.c}]));secs.push({t:'Stroke',rows:B})}
+ const E=[],rad=radius(cs);
+ if(rad)E.push(['Radius',rad]);
+ if(cs.boxShadow!=='none')E.push(['Shadow',fv(cs.boxShadow)]);
+ if(cs.textShadow!=='none')E.push(['Text shadow',fv(cs.textShadow)]);
+ if(cs.backdropFilter&&cs.backdropFilter!=='none')E.push(['Backdrop',fu(cs.backdropFilter)]);
+ if(cs.filter!=='none')E.push(['Filter',fu(cs.filter)]);
+ if(cs.transform!=='none')E.push(['Transform',cs.transform]);
+ if(cs.transitionDuration.split(',').some(x=>parseFloat(x)>0))E.push(['Transition',cs.transition]);
+ if(cs.animationName!=='none')E.push(['Animation',`${cs.animationName} ${cs.animationDuration} ${cs.animationTimingFunction}`]);
+ if(cs.cursor!=='auto')E.push(['Cursor',cs.cursor]);
+ if(E.length)secs.push({t:'Effects',rows:E});
+ if(tag==='svg'){const n=iconName(el);secs.push({t:'Icon',icon:{n,svg:el},rows:[['Name',n||'Custom vector'],['Size',`${px(r.width)} × ${px(r.height)}`],['View box',el.getAttribute('viewBox')||'—'],['Stroke width',el.getAttribute('stroke-width')||'—'],...(n?[['Usage',`ic('${n}', ${Math.round(r.width)})`]]:[])]})}
+ const X=[],role=el.getAttribute('role')||({BUTTON:'button',A:'link',INPUT:el.type==='checkbox'?'checkbox':'textbox',SELECT:'combobox',TABLE:'table',TEXTAREA:'textbox',H1:'heading',H2:'heading',H3:'heading',H4:'heading'})[el.tagName]||'';
+ if(role)X.push(['Role',role]);
+ const al=el.getAttribute('aria-label')||el.getAttribute('title');if(al)X.push(['Label',al]);
+ if(isText(el)){const fg=parseC(cs.color);if(fg){const eb=effBg(el),cr=contrast(fg,eb.c),fs=parseFloat(cs.fontSize),big=fs>=24||(fs>=18.66&&+cs.fontWeight>=700);
+  X.push(['Contrast',`${r2(cr)}:1 · AA ${cr>=(big?3:4.5)?'✓':'✗'} · AAA ${cr>=(big?4.5:7)?'✓':'✗'}`,{note:`on ${fc(eb.c)}${eb.approx?' (approx., gradient)':''}${big?' · large text':''}`}])}}
+ if(el.tabIndex>=0||/^(BUTTON|A|INPUT|SELECT|TEXTAREA)$/.test(el.tagName))X.push(['Focusable',el.disabled?'yes · disabled':'yes']);
+ if(X.length)secs.push({t:'Accessibility',rows:X});
+ const At=[];if(el.id)At.push(['id',el.id]);if(el.classList.length)At.push(['class',[...el.classList].join(' ')]);
+ [...el.attributes].filter(a=>a.name.startsWith('data-')).forEach(a=>At.push([a.name,a.value]));
+ if(el.dataset&&el.dataset.act)At.push(['Click handler',`A.${el.dataset.act}(dataset, event)`,{note:A[el.dataset.act]?'defined in the app script':'not found'}]);
+ if(el.disabled)At.push(['disabled','true']);
+ if(At.length)secs.push({t:'Attributes',rows:At});
+ return secs}
+function cssList(el){const cs=getComputedStyle(el),r=el.getBoundingClientRect(),o=[],add=(k,v)=>o.push([k,v]),d=cs.display;
+ add('width',px(r.width));add('height',px(r.height));
+ if(/flex|grid|inline-block/.test(d))add('display',d);
+ if(cs.position!=='static')add('position',cs.position);
+ if(d.includes('flex')){if(cs.flexDirection!=='row')add('flex-direction',cs.flexDirection);if(cs.flexWrap!=='nowrap')add('flex-wrap',cs.flexWrap);if(!/^(normal|flex-start|start)$/.test(cs.justifyContent))add('justify-content',cs.justifyContent);if(!/^(normal|stretch)$/.test(cs.alignItems))add('align-items',cs.alignItems)}
+ if(d.includes('grid')){add('grid-template-columns',fu(cs.gridTemplateColumns));if(!/^(normal|stretch)$/.test(cs.alignItems))add('align-items',cs.alignItems)}
+ if(flexy(d)&&hasGap(cs.gap))add('gap',fu(cs.gap));
+ const p=box4(cs,'padding'),m=box4(cs,'margin');if(p!=='0')add('padding',p);if(m!=='0')add('margin',m);
+ const rad=radius(cs);if(rad)add('border-radius',rad);
+ const bg=parseC(cs.backgroundColor),hb=bg&&bg.a>0;if(hb)add('background',fc(bg));
+ if(cs.backgroundImage!=='none')add(hb?'background-image':'background',fcs(cs.backgroundImage));
+ const bi=borderInfo(cs);if(bi.uni){const s=bi.sides[0];add('border',`${px(s.w)} ${s.st} ${fc(s.c)}`)}else bi.sides.forEach(s=>add('border-'+s.s.toLowerCase(),`${px(s.w)} ${s.st} ${fc(s.c)}`));
+ if(cs.boxShadow!=='none')add('box-shadow',fv(cs.boxShadow));
+ if(cs.backdropFilter&&cs.backdropFilter!=='none')add('backdrop-filter',fu(cs.backdropFilter));
+ if(cs.opacity!=='1')add('opacity',cs.opacity);
+ if(isText(el)){add('font-family',cs.fontFamily);add('font-size',fu(cs.fontSize));add('font-weight',cs.fontWeight);if(cs.lineHeight!=='normal')add('line-height',fu(cs.lineHeight));
+  if(cs.letterSpacing!=='normal')add('letter-spacing',fu(cs.letterSpacing));if(cs.textTransform!=='none')add('text-transform',cs.textTransform);if(!/^(start|left)$/.test(cs.textAlign))add('text-align',cs.textAlign);add('color',fc(parseC(cs.color)))}
+ else if(el.tagName.toLowerCase()==='svg'||el.querySelector('svg'))add('color',fc(parseC(cs.color)));
+ if(cs.cursor==='pointer')add('cursor','pointer');
+ return o}
+function prettyHTML(s){let ind=0;const out=[];
+ s.replace(/>\s*</g,'>\n<').split('\n').forEach(l=>{if(/^<\/[\w-]/.test(l))ind=Math.max(0,ind-1);out.push('  '.repeat(ind)+l);
+  if(/^<[\w-][^>]*[^\/]>$|^<[\w-]+>$/.test(l)&&!/^<(input|br|img|hr|meta|link|path|circle|rect|line|polyline|polygon)\b/i.test(l)&&!/<\/[\w-]+>$/.test(l))ind++});
+ return out.join('\n')}
+const camel=k=>k.replace(/-([a-z])/g,(_,c)=>c.toUpperCase());
+function codeText(el,kind){if(kind==='html')return prettyHTML(el.outerHTML);const L=cssList(el);
+ if(kind==='react')return `// ${nameOf(el)}\nconst style = {\n${L.map(([k,v])=>`  ${camel(k)}: ${/^-?\d+(\.\d+)?$/.test(v)?v:`'${String(v).replace(/'/g,"\\'")}'`},`).join('\n')}\n};`;
+ return `/* ${nameOf(el)} */\n${selShort(el)} {\n${L.map(([k,v])=>`  ${k}: ${v};`).join('\n')}\n}`}
+const prettyRule=t=>{const i=t.indexOf('{'),sel=t.slice(0,i).trim(),body=t.slice(i+1,t.lastIndexOf('}')).trim();
+ return `${sel} {\n${body.split(/;\s*(?![^(]*\))/).map(x=>x.trim()).filter(Boolean).map(x=>'  '+x+';').join('\n')}\n}`};
+const PST=/::?(hover|active|focus-visible|focus-within|focus|before|after|placeholder)\b/,PSR=/::?(hover|active|focus-visible|focus-within|focus|before|after|placeholder)\b/g;
+function eachRule(fn){const walk=list=>{for(const r of list){if(r.media&&r.cssRules){if(matchMedia(r.media.mediaText).matches)walk(r.cssRules);continue}if(r.selectorText)fn(r)}};
+ for(const ss of document.styleSheets){if(ss.ownerNode&&ss.ownerNode.id==='dm-style')continue;try{walk(ss.cssRules)}catch(_){}}}
+function rulesOf(el){const m=[],st=[];
+ eachRule(r=>{for(const s of r.selectorText.split(/,(?![^(]*\))/)){const sel=s.trim();
+  if(!PST.test(sel)){let hit=false;try{hit=el.matches(sel)}catch(_){}if(hit){m.push(r.cssText);return}}
+  else{const base=sel.replace(PSR,'').trim();let b=false;try{b=!!base&&el.matches(base)}catch(_){}if(b){st.push(r.cssText);return}}}});
+ return {m,st}}
+function rulesMatching(sel){const tok=sel.includes('.')?sel.slice(sel.indexOf('.')):sel,e=tok.replace(/[.*+?^${}()|[\]\\#]/g,'\\$&');
+ const re=/^[.#]/.test(tok)?new RegExp(e+'(?![\\w-])'):new RegExp('(^|[\\s>+~,(])'+e+'(?![\\w-])'),out=[];
+ eachRule(r=>{if(re.test(r.selectorText))out.push(fcs(prettyRule(r.cssText)))});return out}
+function specMD(el){let o=`### ${nameOf(el)}\n\`${tagOf(el)}\`\n`;spec(el).forEach(s=>{o+=`\n**${s.t}**\n`;s.rows.forEach(([k,v,x])=>o+=`- ${k}: ${v}${x&&x.note?` (${x.note})`:''}\n`)});
+ return o+`\n**CSS**\n\`\`\`css\n${codeText(el,'css')}\n\`\`\`\n`}
+function specJSON(el){const o={component:nameOf(el),element:tagOf(el),selector:pathOf(el)};spec(el).forEach(s=>o[s.t.toLowerCase()]=Object.fromEntries(s.rows.map(([k,v])=>[k,v])));o.css=Object.fromEntries(cssList(el));return JSON.stringify(o,null,2)}
+
+/* ---------- asset scan & tokens ---------- */
+function scopeRoots(){const w=document.getElementById('win');return D.scope==='win'&&w&&!w.classList.contains('hidden')?[w]:[document.getElementById('desktop'),document.getElementById('overlay')]}
+function scanEls(){const out=[];scopeRoots().forEach(r=>{out.push(r);r.querySelectorAll('*').forEach(el=>{if(inDev(el)||el.closest('#proto'))return;if(el.closest('svg')&&el.tagName.toLowerCase()!=='svg')return;out.push(el)})});
+ return out.filter(el=>vis(el)&&getComputedStyle(el).visibility!=='hidden')}
+function scan(){const els=scanEls(),col=new Map(),gr=new Map(),ts=new Map(),tok={ff:new Map(),fs:new Map(),fw:new Map(),lh:new Map(),sp:new Map(),gap:new Map(),rad:new Map(),sh:new Map()};
+ const inc=(m,k,el)=>{if(k==null||k==='')return null;let e=m.get(k);if(!e)m.set(k,e={k,n:0,els:[]});e.n++;if(e.els.length<300)e.els.push(el);return e};
+ const addC=(c,role,el)=>{if(!c||c.a===0)return;const e=inc(col,toHex(c),el);e.c=c;(e.roles=e.roles||new Set()).add(role)};
+ els.forEach(el=>{const cs=getComputedStyle(el);
+  if(el.tagName.toLowerCase()==='svg'){addC(parseC(cs.color),'Icon',el);return}
+  if(isText(el)){const c=parseC(cs.color);addC(c,'Text',el);
+   const e=inc(ts,[cs.fontFamily,cs.fontSize,cs.fontWeight,cs.lineHeight,cs.letterSpacing,cs.textTransform].join('|'),el);
+   e.cs=e.cs||{ff:cs.fontFamily,fs:cs.fontSize,fw:cs.fontWeight,lh:cs.lineHeight,ls:cs.letterSpacing,tt:cs.textTransform};
+   (e.colors=e.colors||new Map());if(c)e.colors.set(toHex(c),c);if(!e.sample)e.sample=(textOf(el)||el.value||el.placeholder||'').slice(0,60);
+   inc(tok.ff,rFont(cs.fontFamily),el);inc(tok.fs,cs.fontSize,el);inc(tok.fw,cs.fontWeight,el);if(cs.lineHeight!=='normal')inc(tok.lh,cs.lineHeight,el)}
+  addC(parseC(cs.backgroundColor),'Fill',el);
+  borderInfo(cs).sides.forEach(s=>addC(s.c,'Stroke',el));
+  if(cs.backgroundImage.includes('gradient'))inc(gr,cs.backgroundImage,el);
+  if(cs.boxShadow!=='none'){inc(tok.sh,cs.boxShadow,el);(cs.boxShadow.match(/rgba?\([^)]*\)/g)||[]).forEach(x=>addC(parseC(x),'Shadow',el))}
+  if(parseFloat(cs.borderTopLeftRadius)||parseFloat(cs.borderBottomRightRadius))inc(tok.rad,cs.borderRadius,el);
+  ['Top','Right','Bottom','Left'].forEach(s=>{const v=parseFloat(cs['padding'+s]);if(v>0)inc(tok.sp,v,el)});
+  if(flexy(cs.display))[...new Set(cs.gap.split(' '))].forEach(g=>{const v=parseFloat(g);if(v>0)inc(tok.gap,v,el)})});
+ const srt=m=>[...m.values()].sort((a,b)=>b.n-a.n);
+ D.scan={at:new Date(),n:els.length,colors:srt(col),grads:srt(gr),
+  ts:[...ts.values()].sort((a,b)=>parseFloat(b.cs.fs)-parseFloat(a.cs.fs)||b.cs.fw-a.cs.fw||b.n-a.n),
+  tok:Object.fromEntries(Object.entries(tok).map(([k,m])=>[k,srt(m)]))};D.stale=false}
+const keyN=v=>String(r2(parseFloat(v))).replace('.','_');
+function tsKey(c,used){let k=`text-${keyN(c.fs)}-${(wn(c.fw)||c.fw).toLowerCase().replace(/\s+/g,'')}`;used[k]=(used[k]||0)+1;return used[k]>1?`${k}-${used[k]}`:k}
+function tokens(){if(!D.scan)scan();const s=D.scan,o={meta:{source:'DACC OTA prototype',generated:new Date().toISOString(),scope:D.scope==='win'?'DACC window':'Whole screen',unit:D.unit,colorFormat:D.cf},
+  color:{},gradient:{},typography:{},fontSize:{},fontWeight:{},lineHeight:{},spacing:{},gap:{},radius:{},shadow:{}},used={};
+ s.colors.forEach(c=>o.color['color-'+toHex(c.c).slice(1).toLowerCase()]={value:fc(c.c),usage:c.n,roles:[...c.roles]});
+ s.grads.forEach((g,i)=>o.gradient['gradient-'+(i+1)]={value:fcs(g.k),usage:g.n});
+ s.ts.forEach(t=>{const c=t.cs;o.typography[tsKey(c,used)]={fontFamily:c.ff,renderedFont:rFont(c.ff),fontSize:fu(c.fs),fontWeight:+c.fw,lineHeight:c.lh==='normal'?'normal':fu(c.lh),letterSpacing:c.ls==='normal'?'normal':fu(c.ls),textTransform:c.tt,usage:t.n,sample:t.sample}});
+ s.tok.fs.forEach(x=>o.fontSize['font-size-'+keyN(x.k)]=fu(x.k));
+ s.tok.fw.forEach(x=>o.fontWeight['font-weight-'+x.k]=+x.k);
+ s.tok.lh.forEach(x=>o.lineHeight['line-height-'+keyN(x.k)]=fu(x.k));
+ [...s.tok.sp].sort((a,b)=>a.k-b.k).forEach(x=>o.spacing['space-'+keyN(x.k)]=px(x.k));
+ [...s.tok.gap].sort((a,b)=>a.k-b.k).forEach(x=>o.gap['gap-'+keyN(x.k)]=px(x.k));
+ s.tok.rad.forEach((x,i)=>o.radius['radius-'+(/^[\d.]+px$/.test(x.k)?keyN(x.k):i+1)]=fu(x.k));
+ s.tok.sh.forEach((x,i)=>o.shadow['shadow-'+(i+1)]=fv(x.k));
+ return o}
+const tokensJSON=()=>JSON.stringify(tokens(),null,2);
+function tokensCSS(){const t=tokens();let o=`/* DACC OTA prototype – design tokens · ${t.meta.scope} · ${t.meta.generated} */\n:root {\n`;
+ const sect=(c,obj,f=v=>v)=>{const e=Object.entries(obj);if(!e.length)return;o+=`  /* ${c} */\n`;e.forEach(([k,v])=>o+=`  --${k}: ${f(v)};\n`)};
+ sect('Colors',t.color,v=>v.value);sect('Gradients',t.gradient,v=>v.value);sect('Font sizes',t.fontSize);sect('Font weights',t.fontWeight);sect('Line heights',t.lineHeight);sect('Spacing',t.spacing);sect('Gaps',t.gap);sect('Radius',t.radius);sect('Shadows',t.shadow);
+ o+='}\n';Object.entries(t.typography).forEach(([k,v])=>{o+=`\n.${k} {\n  font-family: ${v.fontFamily};\n  font-size: ${v.fontSize};\n  font-weight: ${v.fontWeight};\n  line-height: ${v.lineHeight};\n${v.letterSpacing!=='normal'?`  letter-spacing: ${v.letterSpacing};\n`:''}${v.textTransform!=='none'?`  text-transform: ${v.textTransform};\n`:''}}\n`});
+ return o}
+const tsCSS=t=>{const c=t.cs,f=[...t.colors.values()][0];return `font-family: ${c.ff};\nfont-size: ${fu(c.fs)};\nfont-weight: ${c.fw};\nline-height: ${c.lh==='normal'?'normal':fu(c.lh)};\n${c.ls!=='normal'?`letter-spacing: ${fu(c.ls)};\n`:''}${c.tt!=='none'?`text-transform: ${c.tt};\n`:''}${f?`color: ${fc(f)};`:''}`.trim()};
+
+/* ---------- screens ---------- */
+function nav(o){if(S.modal&&S.modal.locked){note('An installation is running — wait for it to finish.');return false}
+ Object.assign(S,{modal:null,drawer:null,notifOpen:false,win:'open'},o);render();return true}
+const WMSN=['none','registered','managed'],NETN=['online','metered','offline'];
+function screensList(){const upd=(x={})=>nav({view:'updates',tab:'available',cat:'all',impFilter:'all',...x});
+ return [
+ ['Desktop',[['Desktop · DACC closed',()=>{if(nav({}))Object.assign(S,{win:'closed'}),render()}],['Splash screen',()=>{if(nav({})){S.win='splash';render();setTimeout(()=>{if(S.win==='splash'){S.win='open';render()}},4000)}}],
+  ['Windows toast',()=>osToast('9 updates available','3 critical security updates are ready for this device.','View updates')],['Urgent security update',()=>A.push()]]],
+ ['DACC',[['Home',()=>nav({view:'home'})],['Notifications panel',()=>nav({view:'home',notifOpen:true})],['Toggle maximized',()=>{if(nav({})){S.max=!S.max;render()}}],['App toast',()=>{nav({});toast('Catalog checked · 9 updates available')}]]],
+ ['Software Updates',[...CATS.map(c=>[`Available · ${c.l}`,()=>upd({cat:c.id})]),['Installed',()=>upd({tab:'installed'})],['History',()=>upd({tab:'history'})],['Preferences',()=>upd({tab:'prefs'})]]],
+ ['Drawers & dialogs',[['Update details',()=>{const f=avail().find(i=>!i.skipped);if(f)upd({drawer:f.id,dsec:'fixes'})}],
+  ['Schedule dialog',()=>{if(upd()){S.sel=new Set(avail().slice(0,2).map(i=>i.id));A.schedule()}}],
+  ['Pre-install checks',()=>{if(upd())openPreflight(mkJobs(avail().slice(0,2).map(i=>i.id)),'Install updates','Local · Admin')}],
+  ['Write Filter dialog',()=>{if(upd())A.wfToggle()}],
+  ['OS reimage wizard',()=>{if(upd({cat:'os'})){const im=S.os.images.find(x=>x.latest)||S.os.images[0];A.reimage({img:im.id})}}]]],
+ ['Device state',[[`Write Filter: ${S.wf?'ON':'OFF'}`,()=>{S.wf=!S.wf;syncProto();render()}],[`WMS: ${S.wms}`,()=>{S.wms=WMSN[(WMSN.indexOf(S.wms)+1)%3];if(S.wms==='none'&&S.prefs.source==='wms')S.prefs.source='dell';S.sel.clear();syncProto();render()}],
+  [`Network: ${S.net}`,()=>{S.net=NETN[(NETN.indexOf(S.net)+1)%3];syncProto();render()}],[`Power: ${S.ac?'AC':'Battery'}`,()=>{S.ac=!S.ac;syncProto();render()}],['Reset prototype',()=>A.reset()]]]]}
+function curScreen(){if(S.win==='closed'||S.win==='min')return 'Desktop';if(S.win==='splash')return 'Splash';
+ let s=S.view==='home'?'Home':`Software Updates › ${({available:'Available',installed:'Installed',history:'History',prefs:'Preferences'})[S.tab]||S.tab}`;
+ if(S.view==='updates'&&S.tab==='available'){const c=CATS.find(x=>x.id===S.cat);s+=` › ${c?c.l:S.cat}`}
+ if(S.drawer)s+=' › Details';if(S.notifOpen)s+=' › Notifications';if(S.modal)s+=` › Dialog: ${S.modal.type||'progress'}`;return s}
+
+/* ---------- utilities ---------- */
+let TT;function note(m){TMP.querySelectorAll('.dm-toast').forEach(x=>x.remove());const d=document.createElement('div');d.className='dm-toast';d.textContent=m;TMP.appendChild(d);clearTimeout(TT);TT=setTimeout(()=>d.remove(),2400)}
+function copy(t,label){t=String(t);const ok=()=>note(`Copied${label?' '+label:''}: ${t.split('\n')[0].slice(0,70)}`);
+ const fb=()=>{const ta=document.createElement('textarea');ta.value=t;ta.style.cssText='position:fixed;left:-9999px;opacity:0';TMP.appendChild(ta);ta.select();try{document.execCommand('copy');ok()}catch(_){note('Copy failed')}ta.remove()};
+ if(navigator.clipboard&&window.isSecureContext)navigator.clipboard.writeText(t).then(ok,fb);else fb()}
+function download(text,name,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;TMP.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},2000)}
+function flash(els){D.hl=(els||[]).filter(e=>e.isConnected&&vis(e));D.hlUntil=Date.now()+2600;note(D.hl.length?`${D.hl.length} element${D.hl.length>1?'s':''} highlighted`:'Not visible on this screen')}
+function hl(t,k){const s=h(t);
+ if(k==='html')return s.replace(/(&lt;\/?)([\w-]+)/g,'$1<span class="pk">$2</span>').replace(/([\w-]+)=(&quot;.*?&quot;)/g,'<span class="pv">$1</span>=<span class="ps">$2</span>');
+ return s.replace(/(\/\*.*?\*\/|^\/\/.*$)/gm,'<span class="pc">$1</span>').replace(/^(\s+)([\w-]+)(:)/gm,'$1<span class="pk">$2</span>$3')}
+
+/* ---------- panel rendering ---------- */
+let CK=[],RF=[];const ck=v=>`data-ck="${CK.push(String(v))-1}"`,rf=el=>`data-r="${RF.push(el)-1}"`;
+const CUR='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M5 3l14 8-6 2-3 6z"/></svg>';
+function rowH([k,v,o={}]){const sw=o.sw?`<span class="dm-sw"><i style="background:${cssC(o.sw)}"></i></span>`:o.grad?`<span class="dm-sw"><i style="background:${h(o.grad)}"></i></span>`:'';
+ return `<div class="dm-r"><span class="k">${h(k)}</span><span class="dm-v" ${ck(o.copy??v)} title="Click to copy">${sw}<span>${h(v)}${o.note?` <small>${h(o.note)}</small>`:''}</span></span></div>`}
+function bmH(el){const cs=getComputedStyle(el),r=el.getBoundingClientRect(),n=k=>parseFloat(cs[k])||0,g=k=>r2(n(k))||'–';
+ const side=(p,suf='')=>`<i class="t">${g(p+'Top'+suf)}</i><i class="r">${g(p+'Right'+suf)}</i><i class="btm">${g(p+'Bottom'+suf)}</i><i class="l">${g(p+'Left'+suf)}</i>`;
+ const cw=r.width-n('paddingLeft')-n('paddingRight')-n('borderLeftWidth')-n('borderRightWidth'),chh=r.height-n('paddingTop')-n('paddingBottom')-n('borderTopWidth')-n('borderBottomWidth');
+ return `<div class="dm-bm"><div class="m"><span class="lb">margin</span>${side('margin')}<div class="b"><span class="lb">border</span>${side('border','Width')}<div class="p"><span class="lb">padding</span>${side('padding')}<div class="c">${r2(cw)} × ${r2(chh)}</div></div></div></div></div>`}
+function secH(id,title,body,copyText){const c=D.col[id];
+ return `<div class="dm-sec"><div class="dm-sh" data-dm="col" data-id="${h(id)}"><span class="car">${c?'▸':'▾'}</span>${h(title)}${copyText!=null?`<button class="cb" ${ck(copyText)}>Copy</button>`:''}</div>${c?'':`<div class="dm-sb">${body}</div>`}</div>`}
+const codeBox=(t,k,lbl='Copy')=>`<div class="dm-code"><button class="cb" ${ck(t)}>${lbl}</button><pre>${hl(t,k)}</pre></div>`;
+function inspectH(){const el=D.sel;
+ if(!el)return `<div class="dm-empty">${D.lost?'<div class="dm-note w">The selected element is no longer on screen (the view changed).</div>':''}<h3>Inspect any element</h3>
+  ${D.inspect?'Inspect is <b>on</b>. Hover the prototype to see sizes, padding (green) and margins (orange), then click to select.':'Inspect is <b>off</b>, so the prototype is interactive. Hold <kbd>Alt</kbd> and click to inspect, or press <kbd>I</kbd>.'}
+  <div class="dm-keys"><kbd>I</kbd><span>Toggle inspect / interact</span><span><kbd>Alt</kbd>+click</span><span>Inspect while interacting</span><kbd>Esc</kbd><span>Clear selection</span><span><kbd>↑</kbd> <kbd>⇧ Enter</kbd></span><span>Select parent</span><span><kbd>↓</kbd> <kbd>Enter</kbd></span><span>Select first child</span><span><kbd>←</kbd> <kbd>→</kbd></span><span>Previous / next sibling</span><span>Hover</span><span>With a selection, hover another element to measure distances</span><kbd>⇧ D</kbd><span>Show / hide Dev Mode</span></div>
+  <p style="margin-top:14px">Click any value to copy it. Use <b>Screens</b> to open any state of the app (dialogs, drawers, tabs) and <b>Assets</b> for colors, text styles, icons, components and tokens.</p></div>`;
+ const secs=spec(el),anc=[],ru=rulesOf(el),isSvg=el.tagName.toLowerCase()==='svg';
+ for(let x=el.parentElement;x&&x!==document.body&&anc.length<6;x=x.parentElement)anc.unshift(x);
+ let o=`<div class="dm-el"><div class="nm">${h(nameOf(el))} <span class="t">&lt;${h(el.tagName.toLowerCase())}&gt;</span></div>
+ <div class="dm-crumbs">${anc.map(a=>`<button data-dm="pick" ${rf(a)} title="${h(tagOf(a))}">${h(nameOf(a))}</button>›`).join('')}<span class="cur">${h(nameOf(el))}</span></div>
+ <div class="dm-v" ${ck(tagOf(el))} style="margin:0 0 8px" title="Click to copy">${h(tagOf(el))}</div>
+ <div class="dm-row"><button class="dm-btn" data-dm="parent" ${el.parentElement&&el.parentElement!==document.body?'':'disabled'}>↑ Parent</button><button class="dm-btn" data-dm="child" ${el.firstElementChild&&!isSvg?'':'disabled'}>↓ Child</button><button class="dm-btn" data-dm="prev" ${el.previousElementSibling?'':'disabled'}>← Prev</button><button class="dm-btn" data-dm="next" ${el.nextElementSibling?'':'disabled'}>Next →</button><button class="dm-btn" data-dm="locate">Locate</button><button class="dm-btn" data-dm="desel">Clear</button></div>
+ <div class="dm-row" style="margin-top:6px"><button class="dm-btn p" ${ck(specMD(el))}>Copy spec (Markdown)</button><button class="dm-btn" ${ck(specJSON(el))}>Copy JSON</button><button class="dm-btn" ${ck(codeText(el,'css'))}>Copy CSS</button><button class="dm-btn" ${ck(pathOf(el))}>Copy selector</button></div></div>`;
+ secs.forEach(s=>{let b='';
+  if(s.icon){const n=s.icon.n;b+=`<div class="dm-icd" style="margin:0 -12px 8px"><div class="pv" style="color:${cssC(parseC(getComputedStyle(el).color))}">${svgFile(el).replace(/width="[\d.]+"/,'width="44"').replace(/height="[\d.]+"/,'height="44"')}</div><div class="dm-row">${n?`<button class="dm-btn" ${ck(`ic('${n}', 16)`)}>Copy ic()</button>`:''}<button class="dm-btn" ${ck(svgFile(el))}>Copy SVG</button>${n?`<button class="dm-btn" data-dm="goIcon" data-n="${h(n)}">Open in Icons</button>`:''}</div></div>`}
+  b+=s.rows.map(rowH).join('');if(s.bm)b+=bmH(el);
+  o+=secH(s.t,s.t,b,s.rows.map(([k,v])=>`${k}: ${v}`).join('\n'))});
+ const code=codeText(el,D.code);
+ o+=secH('Code','Code',`<div class="dm-seg">${[['css','CSS'],['react','React style'],['html','HTML']].map(([k,l])=>`<button data-dm="code" data-k="${k}" class="${D.code===k?'on':''}">${l}</button>`).join('')}</div>${codeBox(code,D.code)}`,null);
+ const mr=ru.m.map(t=>fcs(prettyRule(t))).join('\n\n'),sr=ru.st.map(t=>fcs(prettyRule(t))).join('\n\n');
+ o+=secH('Rules',`Matched CSS rules (${ru.m.length})`,ru.m.length?codeBox(mr,'css','Copy all'):'<div class="dm-note">No stylesheet rules match; styles are inherited or inline.</div>',null);
+ if(ru.st.length)o+=secH('States',`States & pseudo-elements (${ru.st.length})`,codeBox(sr,'css','Copy all'),null);
+ if(el.getAttribute('style'))o+=secH('Inline','Inline style',codeBox(el.getAttribute('style'),'css'),null);
+ return o}
+const LROOTS=()=>[document.getElementById('win'),document.querySelector('.desk-icons'),document.getElementById('ostoasts'),document.getElementById('taskbar'),document.getElementById('proto'),document.getElementById('overlay')].filter(Boolean);
+const kids=el=>el.tagName.toLowerCase()==='svg'?[]:[...el.children].filter(c=>!inDev(c)&&!/^(SCRIPT|STYLE)$/.test(c.tagName));
+function layerH(el,dep){const k=kids(el),key=pathOf(el),open=D.open.has(key),nm=nameOf(el),tg=tagOf(el);
+ let o=`<div class="dm-ln ${el===D.sel?'on':''}" style="padding-left:${6+dep*12}px;${vis(el)?'':'opacity:.4'}" data-dm="lpick" ${rf(el)}><span class="tw" ${k.length?`data-dm="ltog" data-key="${h(key)}"`:''}>${k.length?(open?'▾':'▸'):''}</span><span class="nm">${h(nm)}</span><span class="lt">${tg===nm?'':h(tg)}${ownText(el)?` “${h(textOf(el).slice(0,26))}”`:''}</span></div>`;
+ if(open)k.slice(0,300).forEach(c=>o+=layerH(c,dep+1));return o}
+const layersH=()=>`<div class="dm-meta">DOM layers of the current screen. Click to select, hover to highlight. Faded layers are hidden.<button class="dm-cb" data-dm="lcollapse" style="margin-left:auto">Collapse all</button></div><div class="dm-ly">${LROOTS().map(r=>layerH(r,0)).join('')}</div>`;
+function assetsH(){if(!D.scan)scan();const s=D.scan,nI=Object.keys(I).length;
+ let o=`<div class="dm-sub">${[['colors',`Colors (${s.colors.length})`],['text',`Text styles (${s.ts.length})`],['icons',`Icons (${nI})`],['comps','Components'],['tokens','Tokens']].map(([k,l])=>`<button data-dm="asset" data-k="${k}" class="${D.asset===k?'on':''}">${l}</button>`).join('')}</div>`;
+ if(D.asset!=='icons'&&D.asset!=='comps')o+=`<div class="dm-meta">Scope <span class="dm-seg"><button data-dm="scope" data-k="win" class="${D.scope==='win'?'on':''}">DACC window</button><button data-dm="scope" data-k="all" class="${D.scope==='all'?'on':''}">Whole screen</button></span>${s.n} elements · ${fmtT(s.at)}<button class="dm-cb" data-dm="rescan" style="margin-left:auto;${D.stale?'color:#f2c46d!important':''}">↻ ${D.stale?'Screen changed · rescan':'Rescan'}</button></div>`;
+ if(D.asset==='colors'){
+  o+=s.colors.map((c,i)=>`<div class="dm-col"><span class="sw" style="background:${cssC(c.c)}" ${ck(fc(c.c))} title="Copy"></span><div class="info"><b ${ck(fc(c.c))}>${h(fc(c.c))}</b><small>${[...c.roles].map(r=>`<span class="dm-pillr">${r}</span>`).join('')} ${h(alt(c.c))}</small></div><span class="dm-cnt">${c.n}×</span><button class="dm-cb" data-dm="hlc" data-i="${i}">Show</button></div>`).join('')||'<div class="dm-empty">No colors found.</div>';
+  if(s.grads.length)o+='<div class="dm-grp">Gradients</div>'+s.grads.map((g,i)=>`<div class="dm-col"><span class="sw" style="background:${h(g.k)}"></span><div class="info"><b ${ck(fcs(g.k))} style="font-size:10.5px;word-break:break-all">${h(fcs(g.k))}</b></div><span class="dm-cnt">${g.n}×</span><button class="dm-cb" data-dm="hlg" data-i="${i}">Show</button></div>`).join('');
+  o+=`<div class="dm-meta"><button class="dm-btn" ${ck(s.colors.map(c=>`--color-${toHex(c.c).slice(1).toLowerCase()}: ${fc(c.c)};`).join('\n'))}>Copy as CSS variables</button></div>`}
+ if(D.asset==='text')o+=s.ts.map((t,i)=>{const c=t.cs,f=[...t.colors.values()][0],cssT=tsCSS(t);
+  return `<div class="dm-ts"><div class="ttl">${h(r2(parseFloat(c.fs)))} · ${h(wn(c.fw)||c.fw)}<span class="dm-cnt" style="margin-left:auto">${t.n}×</span><button class="dm-cb" data-dm="tsloc" data-i="${i}">Locate</button><button class="dm-cb" data-dm="hlt" data-i="${i}">Show</button><button class="dm-cb" ${ck(cssT)}>Copy CSS</button></div>
+  <div class="smp" style="font-family:${h(c.ff)};font-size:${c.fs};font-weight:${c.fw};line-height:${c.lh};letter-spacing:${c.ls};text-transform:${c.tt};color:${f?cssC(f):'#fff'}">${h(t.sample||'Aa Bb Cc 123')}</div>
+  <div class="spec" ${ck(cssT)} style="cursor:copy">${h(rFont(c.ff))} · ${h(fu(c.fs))} · ${c.fw} ${h(wn(c.fw))} · LH ${h(c.lh==='normal'?'normal':fu(c.lh))}${c.ls!=='normal'?' · LS '+h(fu(c.ls)):''}${c.tt!=='none'?' · '+c.tt:''}</div>
+  <div style="margin-top:5px">${[...t.colors.values()].slice(0,6).map(x=>`<span class="dm-pillr" ${ck(fc(x))} style="cursor:copy"><span class="dm-sw" style="display:inline-block;width:9px;height:9px;vertical-align:-1px;margin-right:4px"><i style="background:${cssC(x)}"></i></span>${h(fc(x))}</span>`).join('')}</div></div>`}).join('')||'<div class="dm-empty">No text found.</div>';
+ if(D.asset==='icons'){const used=iconUse(),names=Object.keys(I).filter(n=>!D.q||n.toLowerCase().includes(D.q.toLowerCase()));
+  if(D.icon&&I[D.icon]){const n=D.icon;o+=`<div class="dm-icd"><div class="pv">${ic(n,44)}</div><div style="flex:1;min-width:0"><div style="color:#fff;font-weight:600;font-size:13px">${h(n)}</div><div class="dm-v" ${ck(`ic('${n}', 16)`)} style="margin:4px 0">ic('${h(n)}', 16)</div><div style="color:#7d8592;font-size:11px;margin-bottom:6px">24 × 24 viewBox · stroke 1.6 · currentColor · used ${used[n]||0}× on screen</div><div class="dm-row"><button class="dm-btn p" ${ck(iconSVG(n,24))}>Copy SVG</button><button class="dm-btn" ${ck(I[n])}>Copy paths</button><button class="dm-btn" data-dm="icdl" data-n="${h(n)}">Download .svg</button>${used[n]?`<button class="dm-btn" data-dm="hli" data-n="${h(n)}">Show on screen</button>`:''}</div></div></div>`}
+  o+=`<div class="dm-meta"><input type="text" data-dmi="q" placeholder="Search ${nI} icons" value="${h(D.q)}" style="flex:1"><button class="dm-btn" data-dm="sprite">Download sprite</button></div><div class="dm-icg">${names.map(n=>`<button class="dm-ict ${D.icon===n?'on':''}" data-dm="icon" data-n="${h(n)}" title="${h(n)}">${ic(n,22)}<span>${h(n)}</span>${used[n]?`<small>${used[n]}× on screen</small>`:''}</button>`).join('')||'<div class="dm-empty">No icons match.</div>'}</div>`}
+ if(D.asset==='comps'){let g='';COMP.forEach((c,i)=>{const n=visList(c[1]).length;if(c[2]!==g){g=c[2];o+=`<div class="dm-grp">${h(g)}</div>`}
+   o+=`<div class="dm-cmp ${n?'':'z'}"><div class="n" data-dm="cmp" data-i="${i}">${h(c[0])}<small>${h(c[1])}</small></div><span class="dm-cnt">${n}</span><button class="dm-cb" data-dm="cmp" data-i="${i}" ${n?'':'disabled'}>Inspect</button><button class="dm-cb" data-dm="cmpcss" data-i="${i}">Copy CSS</button><button class="dm-cb" data-dm="cmphtml" data-i="${i}" ${n?'':'disabled'}>Copy HTML</button></div>`});
+  o+='<div class="dm-meta">Faded components are not on the current screen; open them from <b style="color:#fff">Screens</b>. Inspect cycles through every instance.</div>'}
+ if(D.asset==='tokens'){const T=s.tok,blk=(t,list,f)=>list.length?`<div class="dm-grp">${t}</div><div class="dm-sb"><div class="dm-tok">${list.map(x=>`<button ${ck(f(x.k))} title="${x.n} uses · click to copy">${h(f(x.k))}<small>${x.n}</small></button>`).join('')}</div></div>`:'';
+  o+=blk('Font families (rendered)',T.ff,x=>x)+blk('Font sizes',T.fs,fu)+blk('Font weights',T.fw,x=>`${x} ${wn(x)}`)+blk('Line heights',T.lh,fu)+blk('Spacing · padding',[...T.sp].sort((a,b)=>a.k-b.k),px)+blk('Spacing · gap',[...T.gap].sort((a,b)=>a.k-b.k),px)+blk('Corner radius',T.rad,fu)+blk('Shadows',T.sh,fv);
+  o+=`<div class="dm-meta" style="padding-top:12px"><button class="dm-btn p" data-dm="tokjson">Download tokens.json</button><button class="dm-btn" data-dm="tokcss">Download tokens.css</button><button class="dm-btn" data-dm="tokcopy">Copy JSON</button></div>`}
+ return o}
+const screensH=()=>`<div class="dm-meta">Open any state of the prototype, then inspect it.<br>Current: <b style="color:#fff">${h(curScreen())}</b></div>`+screensList().map(([g,items],gi)=>`<div class="dm-grp">${h(g)}</div><div class="dm-scr">${items.map((it,i)=>`<button class="dm-btn" data-dm="scr" data-g="${gi}" data-i="${i}">${h(it[0])}</button>`).join('')}</div>`).join('');
+function panelH(){CK=[];RF=[];
+ if(!D.on)return `<button class="dm-fab" data-dm="on" title="Open Dev Mode (Shift+D)"><span class="dm-logo" style="background:#0d8a48">&lt;/&gt;</span> Dev Mode</button>`;
+ const hint=D.inspect?'<div class="dm-hint">Inspect mode · click to select · I to interact · hold Space to peek</div>':'';
+ const sv=p=>`<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">${p}</svg>`;
+ const dockB=[['left','Dock left',sv('<rect x="1.5" y="2.5" width="13" height="11" rx="1.5"/><rect x="2.5" y="3.5" width="4" height="9" fill="currentColor" stroke="none"/>')],
+  ['float','Float (drag the header to move, drag the corner to resize)',sv('<rect x="1.5" y="2.5" width="13" height="11" rx="1.5"/><rect x="5" y="5.5" width="6" height="5" fill="currentColor" stroke="none"/>')],
+  ['right','Dock right',sv('<rect x="1.5" y="2.5" width="13" height="11" rx="1.5"/><rect x="9.5" y="3.5" width="4" height="9" fill="currentColor" stroke="none"/>')]]
+  .map(([k,t,i])=>`<button class="dm-ib ${D.dock===k?'on':''}" data-dm="dock" data-k="${k}" title="${t}">${i}</button>`).join('');
+ const hd=`<div class="dm-hd" title="Drag to move · double-click to dock right"><span class="dm-logo">&lt;/&gt;</span><b>Dev Mode</b><span class="dm-sp"></span>
+  <button class="dm-tb ${D.inspect?'on':''}" data-dm="inspect" title="Inspect (I)">${CUR} Inspect</button>${dockB}
+  <button class="dm-ib ${D.ghost?'on':''}" data-dm="ghost" title="See-through: panel fades until you hover it">◐</button>
+  <button class="dm-ib" data-dm="min" title="${D.min?'Expand panel':'Collapse to header'}">${D.min?'▢':'–'}</button>
+  <button class="dm-ib" data-dm="off" title="Hide Dev Mode (Shift+D)">✕</button></div>`;
+ const cls=`dm-panel ${D.dock==='float'?'float':''} ${D.min?'min':''} ${D.ghost?'ghost':''}`;
+ if(D.min)return `<div class="${cls}">${hd}</div>${hint}`;
+ const body=D.tab==='layers'?layersH():D.tab==='assets'?assetsH():D.tab==='screens'?screensH():inspectH();
+ return `<div class="${cls}">${hd}
+  <div class="dm-tabs">${[['inspect','Inspect'],['layers','Layers'],['assets','Assets'],['screens','Screens']].map(([k,l])=>`<button data-dm="tab" data-k="${k}" class="${D.tab===k?'on':''}">${l}</button>`).join('')}</div>
+  <div class="dm-opts">Units <span class="dm-seg">${['px','rem'].map(u=>`<button data-dm="unit" data-k="${u}" class="${D.unit===u?'on':''}">${u}</button>`).join('')}</span>Colors <span class="dm-seg">${[['hex','HEX'],['rgb','RGB'],['hsl','HSL']].map(([k,l])=>`<button data-dm="cf" data-k="${k}" class="${D.cf===k?'on':''}">${l}</button>`).join('')}</span><span class="dm-sp"></span><button class="dm-tb ${D.outline?'on':''}" data-dm="outline" title="Outline every element" style="padding:2px 7px;font-size:11px">▢ Outlines</button></div>
+  <div class="dm-body">${body}</div></div>${hint}`}
+function place(){const p=UI.querySelector('.dm-panel');if(!p)return;const W=innerWidth,H=innerHeight;
+ if(D.dock==='float'){const w=Math.max(320,Math.min(D.fw||400,W-16)),x=Math.max(0,Math.min(D.fx??W-w-24,W-w)),y=Math.max(0,Math.min(D.fy,H-44));
+  Object.assign(p.style,{left:x+'px',top:y+'px',right:'auto',bottom:'auto',width:w+'px',height:D.min?'':Math.max(160,Math.min(D.fh||640,H-y-8))+'px'})}
+ else Object.assign(p.style,{left:D.dock==='left'?'8px':'auto',right:D.dock==='right'?'8px':'auto',top:'8px',bottom:D.min?'auto':'56px',width:'',height:''})}
+addEventListener('resize',place);
+function draw(){const b=UI.querySelector('.dm-body'),st=b?b.scrollTop:0,key=D.tab+D.asset,ae=document.activeElement,foc=ae&&UI.contains(ae)&&ae.dataset.dmi?{k:ae.dataset.dmi,s:ae.selectionStart}:null;
+ UI.innerHTML=panelH();place();document.body.classList.toggle('dm-on',D.on);document.body.classList.toggle('dm-outline',D.on&&D.outline);
+ const b2=UI.querySelector('.dm-body');if(b2&&draw.key===key)b2.scrollTop=st;draw.key=key;
+ if(foc){const i=UI.querySelector(`[data-dmi="${foc.k}"]`);if(i){i.focus();i.setSelectionRange(foc.s,foc.s)}}
+ if(D.scrollLayer){D.scrollLayer=false;const l=UI.querySelector('.dm-ln.on');if(l)l.scrollIntoView({block:'center'})}}
+
+/* ---------- selection & actions ---------- */
+function select(el,o={}){if(!el||inDev(el)||el===document.body)return;D.sel=el;D.selPath=pathOf(el);D.selCls=el.getAttribute('class')||'';D.lost=false;
+ if(!o.keep&&D.tab!=='layers')D.tab='inspect';for(let x=el.parentElement;x&&x!==document.body;x=x.parentElement)D.open.add(pathOf(x));
+ D.scrollLayer=true;draw.key=null;draw()}
+function act(a,d){const s=D.sel;switch(a){
+ case 'on':D.on=true;break;
+ case 'off':D.on=false;D.hover=null;break;
+ case 'inspect':D.inspect=!D.inspect;D.hover=null;break;
+ case 'outline':D.outline=!D.outline;break;
+ case 'dock':if(d.k==='float'&&D.dock!=='float'){const r=UI.querySelector('.dm-panel').getBoundingClientRect();D.fx=r.left-30;D.fy=r.top+40;D.fh=Math.min(640,innerHeight-120)}D.dock=d.k;break;
+ case 'min':D.min=!D.min;break;
+ case 'ghost':D.ghost=!D.ghost;note(D.ghost?'See-through on: the panel fades until you hover it':'See-through off');break;
+ case 'tab':D.tab=d.k;if(d.k==='assets'&&(!D.scan||D.stale))scan();break;
+ case 'unit':D.unit=d.k;break;
+ case 'cf':D.cf=d.k;break;
+ case 'code':D.code=d.k;break;
+ case 'col':D.col[d.id]=!D.col[d.id];break;
+ case 'pick':case 'lpick':select(RF[+d.r],{keep:a==='lpick'});return;
+ case 'ltog':D.open.has(d.key)?D.open.delete(d.key):D.open.add(d.key);break;
+ case 'lcollapse':D.open.clear();break;
+ case 'parent':if(s&&s.parentElement&&s.parentElement!==document.body)select(s.parentElement,{keep:1});return;
+ case 'child':if(s&&s.firstElementChild&&s.tagName.toLowerCase()!=='svg')select(s.firstElementChild,{keep:1});return;
+ case 'prev':if(s&&s.previousElementSibling)select(s.previousElementSibling,{keep:1});return;
+ case 'next':if(s&&s.nextElementSibling)select(s.nextElementSibling,{keep:1});return;
+ case 'locate':if(s){s.scrollIntoView({block:'center',inline:'nearest'});flash([s])}return;
+ case 'desel':D.sel=null;D.lost=false;break;
+ case 'asset':D.asset=d.k;break;
+ case 'scope':D.scope=d.k;scan();break;
+ case 'rescan':scan();note('Rescanned the current screen');break;
+ case 'hlc':flash(D.scan.colors[+d.i].els);return;
+ case 'hlg':flash(D.scan.grads[+d.i].els);return;
+ case 'hlt':flash(D.scan.ts[+d.i].els);return;
+ case 'tsloc':{const e=D.scan.ts[+d.i].els.find(x=>x.isConnected);if(e)select(e);else note('Not on screen any more — rescan');return}
+ case 'icon':D.icon=D.icon===d.n?null:d.n;break;
+ case 'goIcon':Object.assign(D,{tab:'assets',asset:'icons',icon:d.n,q:''});break;
+ case 'icdl':download(iconSVG(d.n,24),`${d.n}.svg`,'image/svg+xml');return;
+ case 'hli':flash(iconEls(d.n));return;
+ case 'sprite':download(sprite(),'dacc-icons-sprite.svg','image/svg+xml');note('Icon sprite downloaded');return;
+ case 'cmp':{const c=COMP[+d.i],L=visList(c[1]);if(!L.length){note(`${c[0]} isn't on this screen — open it from Screens`);return}
+  D.cyc[c[1]]=((D.cyc[c[1]]??-1)+1)%L.length;select(L[D.cyc[c[1]]]);note(`${c[0]} · instance ${D.cyc[c[1]]+1} of ${L.length}`);return}
+ case 'cmpcss':{const c=COMP[+d.i],R=rulesMatching(c[1]);if(R.length)copy(R.join('\n\n'),`${R.length} CSS rule${R.length>1?'s':''}`);else note('No CSS rules found');return}
+ case 'cmphtml':{const e=visList(COMP[+d.i][1])[0];if(e)copy(prettyHTML(e.outerHTML),'HTML');return}
+ case 'tokjson':download(tokensJSON(),'dacc-design-tokens.json','application/json');note('dacc-design-tokens.json downloaded');return;
+ case 'tokcss':download(tokensCSS(),'dacc-design-tokens.css','text/css');note('dacc-design-tokens.css downloaded');return;
+ case 'tokcopy':copy(tokensJSON(),'tokens JSON');return;
+ case 'scr':{const g=+d.g,it=screensList()[g][1][+d.i];if(g!==4){D.sel=null;D.lost=false;D.hover=null}it[1]();note(g===4?'Device state updated':`Showing: ${it[0]}`);
+  setTimeout(()=>{if(D.tab==='assets')scan();draw()},450);break}
+ }
+ save();draw()}
+
+/* ---------- events ---------- */
+UI.addEventListener('click',ev=>{const c=ev.target.closest('[data-ck]'),b=ev.target.closest('[data-dm]');
+ if(c&&(!b||b.contains(c))){ev.preventDefault();copy(CK[+c.dataset.ck]);return}
+ if(!b||b.disabled)return;ev.preventDefault();act(b.dataset.dm,b.dataset)});
+UI.addEventListener('input',ev=>{const t=ev.target;if(t.dataset.dmi==='q'){D.q=t.value;draw()}});
+/* move / resize / peek */
+let DRAG=null;
+UI.addEventListener('pointerdown',ev=>{const hd=ev.target.closest('.dm-hd');if(!hd||ev.target.closest('button')||ev.button!==0)return;
+ const p=UI.querySelector('.dm-panel'),r=p.getBoundingClientRect();ev.preventDefault();
+ if(D.dock!=='float'){D.dock='float';D.fx=r.left;D.fy=r.top;D.fw=r.width;D.fh=r.height;draw()}
+ DRAG={dx:ev.clientX-r.left,dy:ev.clientY-r.top};document.body.classList.add('dm-drag')});
+UI.addEventListener('dblclick',ev=>{if(ev.target.closest('.dm-hd')&&!ev.target.closest('button')){D.dock='right';save();draw()}});
+addEventListener('pointermove',ev=>{if(!DRAG)return;D.fx=ev.clientX-DRAG.dx;D.fy=ev.clientY-DRAG.dy;place()},true);
+addEventListener('pointerup',()=>{if(DRAG){DRAG=null;document.body.classList.remove('dm-drag');const r=UI.querySelector('.dm-panel').getBoundingClientRect();D.fx=r.left;D.fy=r.top;save();return}
+ const p=UI.querySelector('.dm-panel.float:not(.min)');if(p&&(Math.abs(p.offsetWidth-D.fw)>2||Math.abs(p.offsetHeight-D.fh)>2)){D.fw=p.offsetWidth;D.fh=p.offsetHeight;save()}},true);
+const peek=on=>{if(document.body.classList.contains('dm-peek')!==on)document.body.classList.toggle('dm-peek',on)};
+addEventListener('keydown',ev=>{if(ev.code==='Space'&&D.on&&!editable(ev.target)&&!ev.ctrlKey&&!ev.altKey&&!ev.metaKey){ev.preventDefault();ev.stopImmediatePropagation();peek(true)}},true);
+addEventListener('keyup',ev=>{if(ev.code==='Space')peek(false)},true);
+addEventListener('blur',()=>peek(false));
+UI.addEventListener('mouseover',ev=>{const r=ev.target.closest('[data-r]');if(r){D.hover=RF[+r.dataset.r];D.hoverFromPanel=true}else if(D.hoverFromPanel){D.hover=null;D.hoverFromPanel=false}});
+UI.addEventListener('mouseleave',()=>{if(D.hoverFromPanel){D.hover=null;D.hoverFromPanel=false}},true);
+const pickT=ev=>{let t=ev.target;if(!t||t.nodeType!==1||inDev(t))return null;const s=t.closest('svg');if(s)t=s;return t===document.body||t===document.documentElement?null:t};
+const active=ev=>D.on&&(D.inspect||ev.altKey);
+['mousedown','mouseup','pointerdown','pointerup','dblclick','auxclick'].forEach(tp=>addEventListener(tp,ev=>{if(active(ev)&&!inDev(ev.target)){ev.preventDefault();ev.stopImmediatePropagation()}},true));
+addEventListener('click',ev=>{if(!active(ev)||inDev(ev.target))return;ev.preventDefault();ev.stopImmediatePropagation();const t=pickT(ev);if(t)select(t)},true);
+addEventListener('mousemove',ev=>{if(!D.on)return;if(inDev(ev.target)){if(!D.hoverFromPanel)D.hover=null;return}D.hoverFromPanel=false;D.hover=active(ev)?pickT(ev):null},true);
+const editable=t=>t&&(t.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+addEventListener('keydown',ev=>{const k=ev.key;
+ if(ev.shiftKey&&!ev.ctrlKey&&!ev.altKey&&!ev.metaKey&&(k==='D'||k==='d')&&!editable(ev.target)){ev.preventDefault();D.on=!D.on;D.hover=null;save();draw();return}
+ if(!D.on||editable(ev.target)||ev.ctrlKey||ev.metaKey)return;const s=D.sel;let f=null;
+ if((k==='i'||k==='I')&&!ev.shiftKey&&!ev.altKey)f=()=>{D.inspect=!D.inspect;D.hover=null;save();draw();note(D.inspect?'Inspect mode on':'Interact mode · Alt+click to inspect')};
+ else if(k==='Escape'&&s)f=()=>{D.sel=null;draw()};
+ else if(s&&(k==='ArrowUp'||(k==='Enter'&&ev.shiftKey)))f=()=>act('parent',{});
+ else if(s&&(k==='ArrowDown'||k==='Enter'))f=()=>act('child',{});
+ else if(s&&k==='ArrowLeft')f=()=>act('prev',{});
+ else if(s&&k==='ArrowRight')f=()=>act('next',{});
+ if(f){ev.preventDefault();ev.stopImmediatePropagation();f()}},true);
+let MT;new MutationObserver(ms=>{if(ms.every(m=>inDev(m.target)))return;clearTimeout(MT);MT=setTimeout(onDom,220)}).observe(document.body,{childList:true,subtree:true,characterData:true});
+function onDom(){if(!D.on)return;let ch=false;
+ if(D.sel&&!D.sel.isConnected){const n=q1(D.selPath);if(n&&!inDev(n)&&(n.getAttribute('class')||'')===D.selCls)D.sel=n;else{D.sel=null;D.lost=true}ch=true}
+ if(D.hover&&!D.hover.isConnected)D.hover=null;
+ if(D.tab==='assets'&&!D.stale){D.stale=true;ch=true}
+ if(ch||D.tab==='layers'||D.tab==='screens')draw()}
+
+/* ---------- overlay ---------- */
+const rs=r=>`left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px`;
+function measure(a,b){let o='';const line=(x1,y1,x2,y2,v)=>{const hz=y1===y2,L=Math.min(x1,x2),T=Math.min(y1,y2),W=Math.abs(x2-x1),H=Math.abs(y2-y1);if((hz?W:H)<1)return '';
+  return `<div class="dm-ml ${hz?'h':'v'}" style="left:${L}px;top:${T}px;${hz?`width:${W}px`:`height:${H}px`}"><span>${r2(v)}</span></div>`};
+ const inside=(p,q)=>q.left>=p.left-.5&&q.right<=p.right+.5&&q.top>=p.top-.5&&q.bottom<=p.bottom+.5;
+ if(inside(b,a)||inside(a,b)){const [O,N]=inside(b,a)?[b,a]:[a,b],cx=N.left+N.width/2,cy=N.top+N.height/2;
+  return line(cx,O.top,cx,N.top,N.top-O.top)+line(cx,N.bottom,cx,O.bottom,O.bottom-N.bottom)+line(O.left,cy,N.left,cy,N.left-O.left)+line(N.right,cy,O.right,cy,O.right-N.right)}
+ const y1=Math.max(a.top,b.top),y2=Math.min(a.bottom,b.bottom),y=y2>y1?(y1+y2)/2:a.top+a.height/2;
+ if(b.left>=a.right)o+=line(a.right,y,b.left,y,b.left-a.right);else if(b.right<=a.left)o+=line(b.right,y,a.left,y,a.left-b.right);
+ const x1=Math.max(a.left,b.left),x2=Math.min(a.right,b.right),x=x2>x1?(x1+x2)/2:a.left+a.width/2;
+ if(b.top>=a.bottom)o+=line(x,a.bottom,x,b.top,b.top-a.bottom);else if(b.bottom<=a.top)o+=line(x,b.bottom,x,a.top,a.top-b.bottom);
+ return o}
+let HC={el:null},LAST='';
+function frame(){let o='';
+ if(D.on){if(D.hl.length&&Date.now()<D.hlUntil)D.hl.forEach(el=>{if(el.isConnected){const r=el.getBoundingClientRect();if(r.width||r.height)o+=`<div class="dm-hx" style="${rs(r)}"></div>`}});
+  const sel=D.sel&&D.sel.isConnected?D.sel:null;let sr=null;
+  if(sel){sr=sel.getBoundingClientRect();o+=`<div class="dm-sel" style="${rs(sr)}"><span class="dm-lbl ${sr.top<26?'b':''}">${h(nameOf(sel))}</span>${sr.top<26?'':`<span class="dm-sz">${r2(sr.width)} × ${r2(sr.height)}</span>`}</div>`}
+  const hv=D.hover&&D.hover.isConnected&&D.hover!==sel?D.hover:null;
+  if(hv){const r=hv.getBoundingClientRect();
+   if(HC.el!==hv){const cs=getComputedStyle(hv),g=p=>['Top','Right','Bottom','Left'].map(s=>Math.max(0,parseFloat(cs[p.replace('#',s)])||0));HC={el:hv,m:g('margin#'),p:g('padding#'),b:g('border#Width'),nm:nameOf(hv)}}
+   const {m,p,b}=HC;
+   if(!sel)o+=`<div class="dm-mg" style="left:${r.left-m[3]}px;top:${r.top-m[0]}px;width:${r.width+m[1]+m[3]}px;height:${r.height+m[0]+m[2]}px;border-width:${m[0]}px ${m[1]}px ${m[2]}px ${m[3]}px"></div><div class="dm-pd" style="left:${r.left+b[3]}px;top:${r.top+b[0]}px;width:${Math.max(0,r.width-b[1]-b[3])}px;height:${Math.max(0,r.height-b[0]-b[2])}px;border-width:${p[0]}px ${p[1]}px ${p[2]}px ${p[3]}px"></div>`;
+   o+=`<div class="dm-hv" style="${rs(r)}"><span class="dm-lbl h ${r.top<26?'b':''}">${h(HC.nm)} · ${r2(r.width)} × ${r2(r.height)}</span></div>`;
+   if(sr)o+=measure(sr,r)}}
+ if(o!==LAST){OV.innerHTML=o;LAST=o}requestAnimationFrame(frame)}
+
+/* ---------- boot ---------- */
+window.__devmode={D,scan,tokens,spec,specMD,cssList,select,act};
+draw();requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
